@@ -39,6 +39,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withModularHeaders",
       "expo-router",
       "expo-notifications",
       [

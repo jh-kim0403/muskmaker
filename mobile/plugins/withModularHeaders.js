@@ -2,19 +2,8 @@ const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-// React Native Firebase requires modular headers for specific pods only.
-// Using use_modular_headers! globally breaks FirebaseAuth Swift headers.
-const MODULAR_PODS = [
-  'GoogleUtilities',
-  'GoogleDataTransport',
-  'nanopb',
-  'PromisesObjC',
-  'abseil',
-  'gRPC-Core',
-  'gRPC-C++',
-  'leveldb-library',
-];
-
+// React Native Firebase requires both use_frameworks! :linkage => :static
+// AND use_modular_headers! to compile correctly on iOS.
 module.exports = function withModularHeaders(config) {
   return withDangerousMod(config, [
     'ios',
@@ -22,19 +11,17 @@ module.exports = function withModularHeaders(config) {
       const podfilePath = path.join(config.modRequest.platformProjectRoot, 'Podfile');
       let podfile = fs.readFileSync(podfilePath, 'utf8');
 
-      const podLines = MODULAR_PODS.map(
-        (pod) => `  pod '${pod}', :modular_headers => true`
-      ).join('\n');
+      // Remove previous injections to avoid duplication on re-runs
+      podfile = podfile.replace(/\n?\s*use_modular_headers!\n/g, '\n');
+      podfile = podfile.replace(/\n?\s*use_frameworks! :linkage => :static\n/g, '\n');
 
-      const marker = '# React Native Firebase modular headers (auto-generated)';
-      if (!podfile.includes(marker)) {
-        podfile = podfile.replace(
-          'end\n',
-          `\n  ${marker}\n${podLines}\nend\n`
-        );
-        fs.writeFileSync(podfilePath, podfile);
-      }
+      // Inject both after platform declaration
+      podfile = podfile.replace(
+        /^(platform :ios.*)/m,
+        '$1\nuse_frameworks! :linkage => :static\nuse_modular_headers!'
+      );
 
+      fs.writeFileSync(podfilePath, podfile);
       return config;
     },
   ]);
