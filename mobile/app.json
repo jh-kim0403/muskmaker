@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "MuskMaker",
+    "slug": "muskmaker",
+    "version": "1.0.0",
+    "scheme": "muskmaker",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.muskmaker.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "MuskMaker needs camera access to take goal verification photos.",
+        "NSLocationWhenInUseUsageDescription": "MuskMaker Premium can use your location to enable 1-photo instant verification for certain goal types. Location is never used for free users.",
+        "NSPhotoLibraryUsageDescription": "MuskMaker does not access your photo library. All photos must be taken with the in-app camera.",
+        "NSPhotoLibraryAddUsageDescription": "MuskMaker does not save photos to your library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.muskmaker.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "MuskMaker Premium uses location for 1-photo instant verification only."
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "MuskMaker needs camera access to take goal verification photos."
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX",
+          "iosAppId": "ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a126cb4c-c283-4b94-a030-0dfb54c9145a"
+      }
+    },
+    "owner": "jaeh-kim0403"
+  }
+}
