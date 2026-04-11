@@ -1,3 +1,7 @@
+# Native generated directories (EAS rebuilds these via prebuildCommand)
+android/
+ios/
+
 # Dependencies
 node_modules/
 
