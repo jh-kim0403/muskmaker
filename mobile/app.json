@@ -22,7 +22,8 @@
         "NSCameraUsageDescription": "MuskMaker needs camera access to take goal verification photos.",
         "NSLocationWhenInUseUsageDescription": "MuskMaker Premium can use your location to enable 1-photo instant verification for certain goal types. Location is never used for free users.",
         "NSPhotoLibraryUsageDescription": "MuskMaker does not access your photo library. All photos must be taken with the in-app camera.",
-        "NSPhotoLibraryAddUsageDescription": "MuskMaker does not save photos to your library."
+        "NSPhotoLibraryAddUsageDescription": "MuskMaker does not save photos to your library.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -61,7 +62,8 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "newArchEnabled": false
     },
     "extra": {
       "router": {
