@@ -12,8 +12,14 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import firebase from '@react-native-firebase/app';
 import auth from '@react-native-firebase/auth';
 import Purchases from 'react-native-purchases';
+
+// Initialize Firebase app if not already initialized
+if (!firebase.apps.length) {
+  firebase.initializeApp();
+}
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
