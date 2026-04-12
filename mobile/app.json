@@ -41,6 +41,7 @@
     "plugins": [
       "./plugins/withModularHeaders",
       "expo-router",
+      "expo-apple-authentication",
       "expo-notifications",
       [
         "expo-location",
