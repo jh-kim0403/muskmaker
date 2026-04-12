@@ -18,6 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.muskmaker.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "MuskMaker needs camera access to take goal verification photos.",
         "NSLocationWhenInUseUsageDescription": "MuskMaker Premium can use your location to enable 1-photo instant verification for certain goal types. Location is never used for free users.",
@@ -27,6 +28,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
