@@ -27,3 +27,11 @@ mobile/dist/
 mobile/web-build/
 mobile/android/
 mobile/ios/
+mobile/expo-env.d.ts
+
+# EAS
+mobile/.eas/
+
+# Editor
+.vscode/
+.idea/
