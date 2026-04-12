@@ -42,6 +42,7 @@
     },
     "plugins": [
       "./plugins/withModularHeaders",
+      "@react-native-firebase/app",
       "expo-router",
       "expo-apple-authentication",
       "expo-notifications",
