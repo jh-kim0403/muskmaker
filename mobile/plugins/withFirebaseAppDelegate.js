@@ -8,10 +8,12 @@ module.exports = function withFirebaseAppDelegate(config) {
     const { modResults } = config;
 
     if (modResults.language === 'swift') {
-      if (!modResults.contents.includes('import Firebase')) {
+      if (!modResults.contents.includes('import FirebaseCore') && !modResults.contents.includes('import Firebase')) {
+        // Try common import anchors — Expo SDK 53 uses 'import Expo', older SDKs use 'import UIKit'
+        const anchor = modResults.contents.includes('import Expo') ? 'import Expo' : 'import UIKit';
         modResults.contents = modResults.contents.replace(
-          'import UIKit',
-          'import UIKit\nimport Firebase'
+          anchor,
+          `${anchor}\nimport FirebaseCore`
         );
       }
       if (!modResults.contents.includes('FirebaseApp.configure()')) {
