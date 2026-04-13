@@ -17,8 +17,9 @@ module.exports = function withFirebaseAppDelegate(config) {
         );
       }
       if (!modResults.contents.includes('FirebaseApp.configure()')) {
+        // The signature may be single-line or multi-line, so use [\s\S] to cross newlines.
         modResults.contents = modResults.contents.replace(
-          /override func application\(_ application: UIApplication, didFinishLaunchingWithOptions[^\{]+\{/,
+          /override func application\([\s\S]*?didFinishLaunchingWithOptions[\s\S]*?\) -> Bool \{/,
           (match) => `${match}\n    FirebaseApp.configure()`
         );
       }
