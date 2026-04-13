@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.muskmaker.app",
+      "bundleIdentifier": "com.jkcreations.muskmaker",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "MuskMaker needs camera access to take goal verification photos.",
@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
       },
-      "package": "com.muskmaker.app",
+      "package": "com.jkcreations.muskmaker",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
