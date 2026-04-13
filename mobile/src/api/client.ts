@@ -6,10 +6,12 @@
  * - Centralizes base URL configuration
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import auth from '@react-native-firebase/auth';
+import { getAuth } from '@react-native-firebase/auth';
+
+const firebaseAuth = getAuth();
 import Constants from 'expo-constants';
 
-const BASE_URL = Constants.expoConfig?.extra?.apiUrl ?? 'http://localhost:8000/api/v1';
+const BASE_URL = Constants.expoConfig?.extra?.apiUrl ?? 'http://192.168.1.151:8000/api/v1';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -19,7 +21,7 @@ export const apiClient = axios.create({
 
 // ── Request interceptor: attach Firebase JWT ──────────────────────────────────
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const currentUser = auth().currentUser;
+  const currentUser = firebaseAuth.currentUser;
   if (currentUser) {
     // forceRefresh=false — Firebase caches and auto-refreshes the token
     const token = await currentUser.getIdToken(false);

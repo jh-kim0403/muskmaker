@@ -3,7 +3,9 @@
  */
 import { View, Text, StyleSheet, Pressable, Switch, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import auth from '@react-native-firebase/auth';
+import { getAuth, signOut } from '@react-native-firebase/auth';
+
+const firebaseAuth = getAuth();
 
 import { useMe, useNotificationPreferences, useUpdateNotificationPreferences } from '@/api/hooks';
 import { useAuthStore } from '@/stores/authStore';
@@ -21,7 +23,7 @@ export default function ProfileTab() {
       {
         text: 'Sign out', style: 'destructive',
         onPress: async () => {
-          await auth().signOut();
+          await signOut(firebaseAuth);
           clearAuth();
         },
       },

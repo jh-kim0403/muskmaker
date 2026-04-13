@@ -12,7 +12,9 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import auth from '@react-native-firebase/auth';
+import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
+
+const firebaseAuth = getAuth();
 import Purchases from 'react-native-purchases';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -36,6 +38,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -44,7 +48,7 @@ export default function RootLayout() {
 
   // ── Firebase Auth listener ─────────────────────────────────────────────────
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
         setFirebaseUid(firebaseUser.uid);
         try {

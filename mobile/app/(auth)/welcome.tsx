@@ -4,10 +4,10 @@
  */
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { router } from 'expo-router';
-import auth from '@react-native-firebase/auth';
+import { AppleAuthProvider, getAuth, signInWithCredential } from '@react-native-firebase/auth';
 import { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle, signInAsync, AppleAuthenticationScope } from 'expo-apple-authentication';
 import { Platform } from 'react-native';
+const firebaseAuth = getAuth();
 
 export default function WelcomeScreen() {
   const [loading, setLoading] = useState(false);
@@ -20,8 +20,8 @@ export default function WelcomeScreen() {
       });
       const { identityToken } = credential;
       if (!identityToken) throw new Error('No identity token');
-      const appleCredential = auth.AppleAuthProvider.credential(identityToken);
-      await auth().signInWithCredential(appleCredential);
+      const appleCredential = AppleAuthProvider.credential(identityToken);
+      await signInWithCredential(firebaseAuth, appleCredential);
       // Root layout auth listener handles the rest
     } catch (err: any) {
       if (err.code !== 'ERR_REQUEST_CANCELED') {
