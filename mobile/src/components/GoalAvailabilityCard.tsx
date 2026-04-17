@@ -1,30 +1,19 @@
-/**
- * GoalAvailabilityCard — shown on the home screen for each goal type.
- *
- * States:
- *  - Available: tap to create + verify
- *  - Already created, active: tap to go to camera (still in same day)
- *  - Already submitted/approved: show status, no action
- *  - Expired: dim, show "missed today"
- */
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import type { GoalAvailability } from '@/types/api';
+import type { Goal } from '@/types/api';
 
 interface Props {
-  item: GoalAvailability;
+  item: Goal;
   onPress: () => void;
 }
 
 export function GoalAvailabilityCard({ item, onPress }: Props) {
-  const { already_created_today, existing_goal_status, name, coin_reward, difficulty } = item;
+  const { status, goal_type } = item;
 
-  const isExpired = existing_goal_status === 'expired';
-  const isApproved = existing_goal_status === 'approved';
-  const isPendingReview = existing_goal_status === 'submitted';
-  const isActive = existing_goal_status === 'active';
-  const isAvailable = !already_created_today;
-
-  const canTap = isAvailable || isActive;
+  const isActive = status === 'active';
+  const isSubmitted = status === 'submitted';
+  const isApproved = status === 'approved';
+  const isRejected = status === 'rejected';
+  const isExpired = status === 'expired';
 
   return (
     <Pressable
@@ -32,31 +21,26 @@ export function GoalAvailabilityCard({ item, onPress }: Props) {
         styles.card,
         isApproved && styles.cardApproved,
         isExpired && styles.cardExpired,
-        isPendingReview && styles.cardPending,
+        isSubmitted && styles.cardPending,
       ]}
-      onPress={canTap ? onPress : undefined}
-      disabled={!canTap}
+      onPress={isActive ? onPress : undefined}
+      disabled={!isActive}
     >
       <View style={styles.left}>
-        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.name}>{goal_type.name}</Text>
         <View style={styles.metaRow}>
-          <Text style={styles.coins}>+{coin_reward} coins</Text>
-          <Text style={styles.difficulty}>{difficulty}</Text>
+          <Text style={styles.coins}>+{goal_type.coin_reward} coins</Text>
+          <Text style={styles.difficulty}>{goal_type.difficulty}</Text>
         </View>
       </View>
 
       <View style={styles.right}>
-        {isAvailable && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Start →</Text>
-          </View>
-        )}
         {isActive && (
           <View style={[styles.badge, styles.badgeActive]}>
             <Text style={styles.badgeText}>Verify →</Text>
           </View>
         )}
-        {isPendingReview && (
+        {isSubmitted && (
           <View style={[styles.badge, styles.badgePending]}>
             <Text style={styles.badgePendingText}>Under Review</Text>
           </View>
@@ -64,6 +48,11 @@ export function GoalAvailabilityCard({ item, onPress }: Props) {
         {isApproved && (
           <View style={[styles.badge, styles.badgeDone]}>
             <Text style={styles.badgeDoneText}>✓ Done</Text>
+          </View>
+        )}
+        {isRejected && (
+          <View style={[styles.badge, styles.badgeRejected]}>
+            <Text style={styles.badgeRejectedText}>Rejected</Text>
           </View>
         )}
         {isExpired && (
@@ -101,6 +90,8 @@ const styles = StyleSheet.create({
   badgePendingText: { color: '#AAA820', fontSize: 12, fontWeight: '600' },
   badgeDone: { backgroundColor: '#0A1A0A' },
   badgeDoneText: { color: '#6AB06A', fontSize: 13, fontWeight: '600' },
+  badgeRejected: { backgroundColor: '#1A0A0A' },
+  badgeRejectedText: { color: '#E05555', fontSize: 12, fontWeight: '600' },
   badgeExpired: { backgroundColor: '#1A0A0A' },
   badgeExpiredText: { color: '#666', fontSize: 12 },
 });

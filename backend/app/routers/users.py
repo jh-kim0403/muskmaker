@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +59,18 @@ async def update_timezone(
         user_agent=ua,
         source=TzChangeSource.SETTINGS,
     )
+    return current_user
+
+
+@router.post("/me/complete-onboarding", response_model=UserResponse)
+async def complete_onboarding(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark onboarding as complete. Idempotent — safe to call multiple times."""
+    if not current_user.has_completed_onboarding:
+        current_user.has_completed_onboarding = True
+        current_user.onboarding_completed_at = datetime.now(timezone.utc)
     return current_user
 
 

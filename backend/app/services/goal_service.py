@@ -7,7 +7,7 @@ Enforces:
   - timezone_at_creation frozen at insert
 """
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -35,54 +35,34 @@ class GoalService:
         return result.scalars().all()
 
     @staticmethod
-    async def get_daily_availability(
+    async def get_todays_goals(
         db: AsyncSession, user: User
-    ) -> list[dict]:
+    ) -> list[Goal]:
         """
-        Returns all active goal types annotated with whether the user has
-        already created a goal of that type today (in their stored timezone).
-        Used by the UI to show available vs. already-used slots for the day.
+        Returns all goals the user has created today (in their stored timezone),
+        across all statuses. Used by the UI to display today's goal list.
         """
         now_utc = datetime.now(timezone.utc)
         local_today = TimezoneService.user_local_date(now_utc, user.timezone)
 
-        # Fetch all active types
-        types_result = await db.execute(
-            select(GoalType)
-            .where(GoalType.is_active == True)  # noqa: E712
-            .order_by(GoalType.display_order)
-        )
-        goal_types = types_result.scalars().all()
-
-        # Fetch today's goals for this user in one query
-        goals_result = await db.execute(
-            select(Goal).where(
+        result = await db.execute(
+            select(Goal)
+            .options(selectinload(Goal.goal_type))
+            .where(
                 Goal.user_id == user.id,
                 Goal.local_goal_date == local_today,
             )
         )
-        todays_goals = {g.goal_type_id: g for g in goals_result.scalars().all()}
-
-        availability = []
-        for gt in goal_types:
-            existing = todays_goals.get(gt.id)
-            availability.append({
-                "goal_type_id": gt.id,
-                "slug": gt.slug,
-                "name": gt.name,
-                "coin_reward": gt.coin_reward,
-                "already_created_today": existing is not None,
-                "existing_goal_id": existing.id if existing else None,
-                "existing_goal_status": existing.status if existing else None,
-            })
-        return availability
+        return result.scalars().all()
 
     @staticmethod
     async def create_goal(
         db: AsyncSession,
         user: User,
         goal_type_id: UUID,
-        notes: str | None,
+        expire_user_local_date: date,
+        notes: str | None = None,
+        title: str | None = None,
     ) -> Goal:
         """
         Create a new goal for the user.
@@ -104,29 +84,27 @@ class GoalService:
         if goal_type is None:
             raise HTTPException(status_code=404, detail="Goal type not found or inactive")
 
-        now_utc = datetime.now(timezone.utc)
-        local_today = TimezoneService.user_local_date(now_utc, user.timezone)
-        expires_at = TimezoneService.local_day_end_utc(local_today, user.timezone)
+        expires_at = TimezoneService.local_day_end_utc(expire_user_local_date, user.timezone)
 
         # Application-layer duplicate check (gives a clean error before hitting the constraint)
         existing = await db.execute(
             select(Goal).where(
                 Goal.user_id == user.id,
                 Goal.goal_type_id == goal_type_id,
-                Goal.local_goal_date == local_today,
+                Goal.local_goal_date == expire_user_local_date,
             )
         )
         if existing.scalar_one_or_none() is not None:
             raise HTTPException(
                 status_code=409,
-                detail=f"You have already created a '{goal_type.name}' goal today",
+                detail=f"You have already created a '{goal_type.name}' goal for day {expire_user_local_date}",
             )
 
         goal = Goal(
             user_id=user.id,
             goal_type_id=goal_type_id,
-            notes=notes,
-            local_goal_date=local_today,
+            title=title or goal_type.name,
+            local_goal_date=expire_user_local_date,
             timezone_at_creation=user.timezone,  # frozen at creation
             expires_at=expires_at,
         )
@@ -138,7 +116,7 @@ class GoalService:
             await db.rollback()
             raise HTTPException(
                 status_code=409,
-                detail=f"You have already created a '{goal_type.name}' goal today",
+                detail=f"You have already created a '{goal_type.name}' goal for day {expire_user_local_date}",
             )
 
         # Reload with relationship for response

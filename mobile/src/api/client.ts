@@ -6,12 +6,20 @@
  * - Centralizes base URL configuration
  */
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getAuth } from '@react-native-firebase/auth';
+import { getAuth, getIdToken } from '@react-native-firebase/auth';
 
 const firebaseAuth = getAuth();
 import Constants from 'expo-constants';
 
-const BASE_URL = Constants.expoConfig?.extra?.apiUrl ?? 'http://192.168.1.151:8000/api/v1';
+const appEnv = Constants.expoConfig?.extra?.appEnv ?? 'development';
+const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl;
+const BASE_URL =
+  configuredApiUrl ??
+  (appEnv === 'development' ? 'http://192.168.1.151:8000/api/v1' : undefined);
+
+if (!BASE_URL) {
+  throw new Error(`Missing API_URL for APP_ENV=${appEnv}`);
+}
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -24,7 +32,7 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
   const currentUser = firebaseAuth.currentUser;
   if (currentUser) {
     // forceRefresh=false — Firebase caches and auto-refreshes the token
-    const token = await currentUser.getIdToken(false);
+    const token = await getIdToken(currentUser, false);
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

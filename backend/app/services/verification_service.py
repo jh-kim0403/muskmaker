@@ -31,14 +31,13 @@ from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.constants import (
-    AIVerdict, CheatEvent, GoalStatus, PHOTO_COUNT_BY_PATH,
+    CheatEvent, GoalStatus, PHOTO_COUNT_BY_PATH,
     VerificationPath, VerificationStatus,
 )
 from app.models.audit import AdminReview, AntiCheatLog
 from app.models.goal import Goal, GoalType
 from app.models.user import User
 from app.models.verification import Verification, VerificationPhoto
-from app.services.ai_service import AIService
 from app.services.coin_service import CoinService
 from app.services.storage_service import StorageService
 from app.services.timezone_service import TimezoneService
@@ -135,7 +134,7 @@ class VerificationService:
                 raise HTTPException(status_code=422, detail=f"Photo not found in storage: {key}")
 
         # ── 5. Extract EXIF server-side (never trust client) ──────────────────
-        exif_data_list = [StorageService.extract_exif(key) for key in photo_s3_keys]
+        exif_data_list = [StorageService.extract_exif(key, user.timezone) for key in photo_s3_keys]
         primary_exif = exif_data_list[0]  # use first photo as primary timestamp reference
 
         # ── 6. Anti-cheat checks ──────────────────────────────────────────────
@@ -145,22 +144,6 @@ class VerificationService:
 
         if exif_captured_at:
             delta_seconds = abs(int((server_receipt_at - exif_captured_at).total_seconds()))
-
-            if delta_seconds > settings.exif_delta_fail_seconds:
-                # Hard fail: timestamp too far off
-                db.add(AntiCheatLog(
-                    user_id=user.id,
-                    event_type=CheatEvent.ABNORMAL_DELTA,
-                    severity="high",
-                    reference_type="verification",
-                    details={"delta_seconds": delta_seconds, "goal_id": str(goal_id)},
-                    auto_action="blocked",
-                ))
-                await db.flush()
-                raise HTTPException(
-                    status_code=422,
-                    detail="Photo timestamp is too far from submission time — please retake the photo",
-                )
         else:
             # No EXIF at all — likely library upload attempt or stripped metadata
             db.add(AntiCheatLog(
@@ -225,36 +208,15 @@ class VerificationService:
             await VerificationService._route_to_manual_review(db, verification)
 
         else:
-            # Premium: run AI verification
-            photo_urls = [StorageService.get_photo_url(key) for key in photo_s3_keys]
-            ai_result = await AIService.run_verification(
-                goal_type_name=goal_type.name,
-                goal_type_slug=goal_type.slug,
-                photo_urls=photo_urls,
-                exif_captured_at=exif_captured_at,
-                server_receipt_at=server_receipt_at,
-                location_lat=float(location_lat) if location_lat else None,
-                location_lng=float(location_lng) if location_lng else None,
+            # Premium: enqueue async AI verification
+            from app.tasks.ai_verification import (
+                run_ai_verification_location,
+                run_ai_verification_standard,
             )
-
-            # Store AI result on verification
-            verification.ai_confidence_score = ai_result["confidence_score"]
-            verification.ai_verdict = ai_result["verdict"]
-            verification.ai_result_payload = ai_result
-            verification.ai_processed_at = datetime.now(timezone.utc)
-
-            if ai_result["verdict"] == AIVerdict.PASS:
-                # Instant approval + coin award
-                await VerificationService._approve_verification(
-                    db, user, verification, goal, goal_type.coin_reward
-                )
-            elif ai_result["verdict"] == AIVerdict.FAIL:
-                verification.status = VerificationStatus.REJECTED
-                verification.rejection_reason = "Automated review: photo does not show the stated goal"
-                goal.status = GoalStatus.REJECTED
+            if verification_path == VerificationPath.PREMIUM_AI_LOCATION:
+                run_ai_verification_location.delay(str(verification.id))
             else:
-                # Uncertain: escalate to manual review
-                await VerificationService._route_to_manual_review(db, verification, priority=3)
+                run_ai_verification_standard.delay(str(verification.id))
 
         await db.flush()
         await db.refresh(verification, ["photos"])

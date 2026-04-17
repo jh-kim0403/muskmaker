@@ -23,7 +23,6 @@ import {
 import * as api from './endpoints';
 import type {
   User,
-  GoalAvailability,
   Goal,
   Verification,
   SweepstakesWithOdds,
@@ -34,7 +33,7 @@ import type {
 
 // ── User ──────────────────────────────────────────────────────────────────────
 export const useMe = (options?: UseQueryOptions<User>) =>
-  useQuery({ queryKey: ['me'], queryFn: api.fetchMe, ...options });
+  useQuery({ queryKey: ['me'], queryFn: api.fetchMe, staleTime: 5 * 60 * 1000, ...options });
 
 export const useUpdateTimezone = () => {
   const qc = useQueryClient();
@@ -52,14 +51,22 @@ export const useUpdateProfile = () => {
   });
 };
 
+export const useCompleteOnboarding = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: api.completeOnboarding,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+};
+
 // ── Goals ─────────────────────────────────────────────────────────────────────
 export const useGoalTypes = () =>
   useQuery({ queryKey: ['goal-types'], queryFn: api.fetchGoalTypes, staleTime: 5 * 60 * 1000 });
 
-export const useTodaysAvailability = () =>
+export const useTodaysGoals = () =>
   useQuery({
     queryKey: ['goals', 'today'],
-    queryFn: api.fetchTodaysAvailability,
+    queryFn: api.fetchTodaysGoals,
     // Refetch when the app comes to foreground — local day may have changed
     refetchOnWindowFocus: true,
     staleTime: 60 * 1000,

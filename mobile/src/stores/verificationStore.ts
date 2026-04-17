@@ -39,6 +39,7 @@ interface VerificationFlowState {
   // Actions
   startFlow: (goalId: string, path: VerificationPath) => void;
   addPhoto: (photo: CapturedPhoto) => void;
+  removePhoto: (photoIndex: number) => void;
   setPhotoS3Key: (photoIndex: number, s3Key: string) => void;
   setLocation: (location: LocationData | null) => void;
   setUploading: (isUploading: boolean) => void;
@@ -73,6 +74,9 @@ export const useVerificationStore = create<VerificationFlowState>((set, get) => 
 
   addPhoto: (photo) =>
     set((state) => ({ photos: [...state.photos, photo] })),
+
+  removePhoto: (photoIndex) =>
+    set((state) => ({ photos: state.photos.filter((p) => p.photoIndex !== photoIndex) })),
 
   setPhotoS3Key: (photoIndex, s3Key) =>
     set((state) => ({

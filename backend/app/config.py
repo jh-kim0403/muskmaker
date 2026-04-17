@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # ── Sweepstakes ───────────────────────────────────────────────────────
     sweep_winner_claim_days: int = 30  # days after notification to claim prize
 
+    # ── Celery / RabbitMQ ─────────────────────────────────────────────────
+    rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"
+
     # ── CORS ──────────────────────────────────────────────────────────────
     cors_origins: list[str] = ["*"]
 

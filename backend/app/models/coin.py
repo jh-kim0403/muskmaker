@@ -1,6 +1,16 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Integer, String, ForeignKey, TIMESTAMP, CheckConstraint, Enum as SAEnum, event, func
+from sqlalchemy import (
+    CheckConstraint,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    TIMESTAMP,
+    Text,
+    event,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, uuid_pk
 
@@ -62,7 +72,7 @@ class CoinLedger(Base):
         SAEnum("goal", "sweepstakes_entry", "admin", name="coin_ref_type")
     )
 
-    description: Mapped[str | None] = mapped_column(String)
+    description: Mapped[str | None] = mapped_column(Text)
 
     # No updated_at — this table is intentionally immutable after insert.
     created_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
@@ -74,6 +84,16 @@ class CoinLedger(Base):
         return f"<CoinLedger id={self.id} user={self.user_id} amount={self.amount} balance_after={self.balance_after}>"
 
 
+Index("idx_ledger_user", CoinLedger.user_id, CoinLedger.created_at.desc())
+Index("idx_ledger_type", CoinLedger.transaction_type)
+Index(
+    "idx_ledger_reference",
+    CoinLedger.reference_id,
+    CoinLedger.reference_type,
+    postgresql_where=CoinLedger.reference_id.is_not(None),
+)
+
+
 # ── ORM-level immutability guard ──────────────────────────────────────────────
 # The DB trigger (trg_ledger_immutable) is the primary enforcement.
 # This event listener catches any accidental mutation from within the ORM
@@ -83,5 +103,14 @@ def _prevent_ledger_update(mapper, connection, target: CoinLedger) -> None:
     raise RuntimeError(
         f"coin_ledger rows are immutable. "
         f"Attempted UPDATE on row id={target.id}. "
+        f"To correct an error, insert a reversing entry instead."
+    )
+
+
+@event.listens_for(CoinLedger, "before_delete")
+def _prevent_ledger_delete(mapper, connection, target: CoinLedger) -> None:
+    raise RuntimeError(
+        f"coin_ledger rows are immutable. "
+        f"Attempted DELETE on row id={target.id}. "
         f"To correct an error, insert a reversing entry instead."
     )

@@ -10,7 +10,7 @@
  *  6. Provide TanStack Query client to the entire tree
  */
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { getAuth, onAuthStateChanged } from '@react-native-firebase/auth';
 
@@ -43,11 +43,33 @@ Notifications.setNotificationHandler({
   }),
 });
 
+let isRevenueCatConfigured = false;
+
+function configureRevenueCat() {
+  if (isRevenueCatConfigured) return true;
+
+  const rcKey = Platform.select({
+    ios: Constants.expoConfig?.extra?.revenueCatKeyIos,
+    android: Constants.expoConfig?.extra?.revenueCatKeyAndroid,
+  });
+
+  if (!rcKey) {
+    console.warn('RevenueCat API key is missing for this platform.');
+    return false;
+  }
+
+  Purchases.configure({ apiKey: rcKey });
+  isRevenueCatConfigured = true;
+  return true;
+}
+
 export default function RootLayout() {
   const { setFirebaseUid, setUser, clearAuth } = useAuthStore();
 
   // ── Firebase Auth listener ─────────────────────────────────────────────────
   useEffect(() => {
+    const revenueCatConfigured = configureRevenueCat();
+
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
       if (firebaseUser) {
         setFirebaseUid(firebaseUser.uid);
@@ -56,8 +78,15 @@ export default function RootLayout() {
           const user = await fetchMe();
           setUser(user);
 
+          if (!user.has_completed_onboarding) {
+            router.replace('/(auth)/onboarding');
+            return;
+          }
+
           // Sync RevenueCat to this Firebase user
-          await Purchases.logIn(firebaseUser.uid);
+          if (revenueCatConfigured) {
+            await Purchases.logIn(firebaseUser.uid);
+          }
 
           // Sync device timezone (once per session — backend rate-limits changes)
           const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -77,22 +106,13 @@ export default function RootLayout() {
         }
       } else {
         clearAuth();
-        await Purchases.logOut().catch(() => {});
+        if (revenueCatConfigured) {
+          await Purchases.logOut().catch(() => {});
+        }
       }
     });
 
     return () => unsubscribe();
-  }, []);
-
-  // ── RevenueCat initialization ──────────────────────────────────────────────
-  useEffect(() => {
-    const rcKey = Platform.select({
-      ios: Constants.expoConfig?.extra?.revenueCatKeyIos,
-      android: Constants.expoConfig?.extra?.revenueCatKeyAndroid,
-    });
-    if (rcKey) {
-      Purchases.configure({ apiKey: rcKey });
-    }
   }, []);
 
   return (

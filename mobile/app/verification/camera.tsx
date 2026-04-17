@@ -29,7 +29,8 @@ import type { VerificationPath } from '@/types/api';
 
 export default function CameraScreen() {
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
-  const isPremium = useAuthStore((s) => s.isPremium)();
+  const user = useAuthStore((s) => s.user);
+  const isPremium = user?.subscription_tier === 'premium';
   const { data: goal } = useGoal(goalId);
 
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -40,12 +41,20 @@ export default function CameraScreen() {
   const {
     startFlow, addPhoto, setPhotoS3Key, setLocation,
     setUploading, photos, verificationPath, requiredPhotoCount,
+    goalId: flowGoalId,
   } = useVerificationStore();
 
   const [adDismissed, setAdDismissed] = useState(isPremium); // premium users skip ad
   const [capturing, setCapturing] = useState(false);
-  const [selectedPath, setSelectedPath] = useState<VerificationPath | null>(null);
-  const [showPathSelector, setShowPathSelector] = useState(isPremium); // free users go straight to camera
+  const [selectedPath, setSelectedPath] = useState<VerificationPath | null>(
+    flowGoalId === goalId ? verificationPath : null,
+  );
+  // Only show path selector on the first mount for this goal.
+  // If the flow is already in progress (flowGoalId === goalId), the path was
+  // chosen earlier — skip straight to camera.
+  const [showPathSelector, setShowPathSelector] = useState(
+    isPremium && flowGoalId !== goalId,
+  );
 
   const required = requiredPhotoCount();
   const capturedCount = photos.length;
@@ -54,11 +63,17 @@ export default function CameraScreen() {
   useEffect(() => {
     if (!isPremium && goal) {
       // Free users have no choice — always free_manual
-      startFlow(goalId, 'free_manual');
       setSelectedPath('free_manual');
       setShowPathSelector(false);
+      // Only initialize the flow if it hasn't been started for this goal yet.
+      // startFlow resets the store (including photos), so calling it on every
+      // camera remount (e.g. when returning from the preview screen for photo 2)
+      // would wipe the already-captured photo 1.
+      if (flowGoalId !== goalId) {
+        startFlow(goalId, 'free_manual');
+      }
     }
-  }, [isPremium, goal]);
+  }, [isPremium, goal, goalId, flowGoalId]);
 
   const handleSelectPath = async (path: VerificationPath) => {
     if (path === 'premium_ai_location') {

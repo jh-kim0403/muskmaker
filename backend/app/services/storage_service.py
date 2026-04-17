@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 
 import boto3
 import piexif
+import pytz
 from PIL import Image
 
 from app.config import get_settings
@@ -87,7 +88,7 @@ class StorageService:
             return False
 
     @staticmethod
-    def extract_exif(s3_key: str) -> dict:
+    def extract_exif(s3_key: str, user_timezone: str = "UTC") -> dict:
         """
         Download the photo from S3 and extract EXIF metadata server-side.
         Returns a dict with keys:
@@ -131,9 +132,11 @@ class StorageService:
             if dt_original:
                 try:
                     dt_str = dt_original.decode("utf-8")
-                    result["captured_at"] = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S").replace(
-                        tzinfo=timezone.utc
-                    )
+                    naive_dt = datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+                    # EXIF DateTimeOriginal is naive local time — localize using the
+                    # user's stored timezone before converting to UTC for comparison.
+                    tz = pytz.timezone(user_timezone)
+                    result["captured_at"] = tz.localize(naive_dt).astimezone(timezone.utc)
                 except (ValueError, UnicodeDecodeError):
                     logger.warning("Could not parse EXIF DateTime from s3_key=%s", s3_key)
 

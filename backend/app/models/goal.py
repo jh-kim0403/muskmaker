@@ -1,8 +1,18 @@
 import uuid
 from datetime import date, datetime
 from sqlalchemy import (
-    String, Boolean, Integer, Date, ForeignKey, TIMESTAMP,
-    UniqueConstraint, Enum as SAEnum, func, Text
+    Boolean,
+    CheckConstraint,
+    Date,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    TIMESTAMP,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, uuid_pk
@@ -14,13 +24,20 @@ class GoalType(Base):
     coin_reward is identical for free and premium users — it is NEVER tier-adjusted.
     """
     __tablename__ = "goal_types"
+    __table_args__ = (
+        CheckConstraint("coin_reward > 0", name="chk_goal_types_coin_reward_positive"),
+    )
 
     id: Mapped[uuid.UUID]           = uuid_pk()
-    name: Mapped[str]               = mapped_column(String, nullable=False)           # "Go to the gym"
-    slug: Mapped[str]               = mapped_column(String, nullable=False, unique=True)  # "gym"
+    name: Mapped[str]               = mapped_column(Text, nullable=False)  # "Go to the gym"
+    slug: Mapped[str]               = mapped_column(Text, nullable=False, unique=True)  # "gym"
     description: Mapped[str | None] = mapped_column(Text)
-    icon_url: Mapped[str | None]    = mapped_column(String)
-
+    type: Mapped[str]               = mapped_column(
+        SAEnum("photo", "quiz", name="goal_type"),
+        nullable=False,
+    )
+    icon_url: Mapped[str | None]    = mapped_column(Text)
+    ai_prompt: Mapped[str | None]   = mapped_column(Text)
     # Coins awarded on successful verification.
     # This value is NEVER modified by the user's subscription tier.
     coin_reward: Mapped[int]        = mapped_column(Integer, nullable=False)
@@ -28,14 +45,21 @@ class GoalType(Base):
         SAEnum("easy", "medium", "hard", name="difficulty"),
         nullable=False,
         default="medium",
+        server_default="medium",
     )
 
     # When True, the premium 1-photo AI path for this type requires location.
     # Has absolutely no effect on free users.
-    supports_location_path: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    supports_location_path: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
-    is_active: Mapped[bool]         = mapped_column(Boolean, nullable=False, default=True)
-    display_order: Mapped[int]      = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool]         = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    display_order: Mapped[int]      = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
 
     created_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -72,11 +96,13 @@ class Goal(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     goal_type_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("goal_types.id"), nullable=False)
-
+    title: Mapped[str]              = mapped_column(Text, nullable=False)
+    
     status: Mapped[str]             = mapped_column(
         SAEnum("active", "submitted", "approved", "rejected", "expired", name="goal_status"),
         nullable=False,
         default="active",
+        server_default="active",
     )
     notes: Mapped[str | None]       = mapped_column(Text)
 
@@ -88,7 +114,7 @@ class Goal(Base):
 
     # The timezone in effect when this goal was created. Frozen at insert.
     # A subsequent timezone change on the user does NOT update this column.
-    timezone_at_creation: Mapped[str] = mapped_column(String, nullable=False)
+    timezone_at_creation: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Precomputed end-of-local-day in UTC. Set once at creation.
     # Formula: local_day_end_utc(local_goal_date, timezone_at_creation)
@@ -104,3 +130,11 @@ class Goal(Base):
 
     def __repr__(self) -> str:
         return f"<Goal id={self.id} type={self.goal_type_id} date={self.local_goal_date} status={self.status}>"
+
+
+Index("idx_goal_types_active", GoalType.is_active, GoalType.display_order)
+Index("idx_goal_types_slug", GoalType.slug)
+Index("idx_goals_user_date", Goal.user_id, Goal.local_goal_date.desc())
+Index("idx_goals_status", Goal.status, postgresql_where=Goal.status.in_(["active", "submitted"]))
+Index("idx_goals_expires_at", Goal.expires_at, postgresql_where=Goal.status == "active")
+Index("idx_goals_user_type", Goal.user_id, Goal.goal_type_id)

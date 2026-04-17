@@ -1,156 +1,231 @@
-/**
- * Goal creation screen (modal).
- *
- * Pre-fills the goal type if goalTypeId is passed as a query param.
- * After creation, navigates directly to the camera for verification.
- */
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  FlatList,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 
 import { useGoalTypes, useCreateGoal } from '@/api/hooks';
 import { useAuthStore } from '@/stores/authStore';
+import type { GoalType } from '@/types/api';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+
+function buildDateOptions(userTz: string) {
+  const today = dayjs().tz(userTz);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = today.add(i, 'day');
+    return {
+      label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.format('ddd D'),
+      sublabel: i <= 1 ? d.format('MMM D') : d.format('MMM'),
+      value: d.format('YYYY-MM-DD'),
+    };
+  });
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function CreateGoalScreen() {
-  const { goalTypeId } = useLocalSearchParams<{ goalTypeId?: string }>();
-  const { data: goalTypes } = useGoalTypes();
+  const { data: goalTypes, isLoading: typesLoading } = useGoalTypes();
   const createGoal = useCreateGoal();
-  const isPremium = useAuthStore((s) => s.isPremium)();
   const userTz = useAuthStore((s) => s.timezone)();
 
-  const [notes, setNotes] = useState('');
+  const dateOptions = buildDateOptions(userTz);
 
-  const selectedType = goalTypes?.find((t) => t.id === goalTypeId);
+  const [selectedType, setSelectedType] = useState<GoalType | null>(null);
+  const [title, setTitle] = useState('');
+  const [selectedDate, setSelectedDate] = useState(dateOptions[0].value);
 
-  const expiryTime = dayjs().tz(userTz).endOf('day').format('h:mm A');
+  const canSubmit = !!selectedType && title.trim().length > 0;
 
   const handleCreate = async () => {
-    if (!goalTypeId) return;
+    if (!selectedType || !title.trim()) return;
     try {
-      const goal = await createGoal.mutateAsync({ goal_type_id: goalTypeId, notes: notes || undefined });
-
-      // Navigate to camera immediately after goal creation
-      router.replace(`/verification/camera?goalId=${goal.id}`);
+      await createGoal.mutateAsync({
+        goal_type_id: selectedType.id,
+        title: title.trim(),
+        expire_user_local_date: selectedDate,
+      });
+      router.replace('/(tabs)');
+      Alert.alert('Goal Created!', `"${title.trim()}" has been added to today's goals.`, [{ text: 'OK' }]);
     } catch (err: any) {
-      Alert.alert(
-        'Could not create goal',
-        err.detail ?? 'Please try again',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Could not create goal', err.detail ?? 'Please try again', [{ text: 'OK' }]);
     }
   };
 
-  if (!selectedType) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Goal type not found.</Text>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Header */}
-      <Pressable style={styles.closeBtn} onPress={() => router.back()}>
-        <Text style={styles.closeBtnText}>✕</Text>
-      </Pressable>
-
-      <Text style={styles.title}>{selectedType.name}</Text>
-
-      <View style={styles.metaRow}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>+{selectedType.coin_reward} coins on completion</Text>
-        </View>
-        <View style={[styles.badge, styles.difficultyBadge]}>
-          <Text style={styles.badgeText}>{selectedType.difficulty}</Text>
-        </View>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.closeBtn}>
+          <Text style={styles.closeBtnText}>✕</Text>
+        </Pressable>
+        <Text style={styles.heading}>New Goal</Text>
       </View>
 
-      {selectedType.description && (
-        <Text style={styles.description}>{selectedType.description}</Text>
+      {/* ── Goal Type ── */}
+      <Text style={styles.label}>Type of Goal</Text>
+      {typesLoading ? (
+        <ActivityIndicator color="#F5A623" style={{ marginVertical: 16 }} />
+      ) : (
+        <View style={styles.typeGrid}>
+          {(goalTypes ?? []).map((gt) => {
+            const active = selectedType?.id === gt.id;
+            return (
+              <Pressable
+                key={gt.id}
+                style={[styles.typeCard, active && styles.typeCardActive]}
+                onPress={() => {
+                  setSelectedType(gt);
+                  if (!title) setTitle(gt.name);
+                }}
+              >
+                <Text style={[styles.typeName, active && styles.typeNameActive]} numberOfLines={2}>
+                  {gt.name}
+                </Text>
+                <Text style={styles.typeCoins}>+{gt.coin_reward} coins</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       )}
 
-      {/* Expiry warning */}
-      <View style={styles.expiryBox}>
-        <Text style={styles.expiryText}>
-          ⚠ This goal must be verified before {expiryTime} tonight.
-          It cannot be verified on a different day.
-        </Text>
-      </View>
-
-      {/* Verification path info */}
-      <View style={styles.infoBox}>
-        {isPremium ? (
-          <Text style={styles.infoText}>
-            ✨ Premium: instant AI verification after photo
-            {selectedType.supports_location_path ? ' (1-photo with location available)' : ''}
-          </Text>
-        ) : (
-          <Text style={styles.infoText}>
-            📋 Free: 2 photos required · manual review · up to 24 hours
-          </Text>
-        )}
-      </View>
-
+      {/* ── Title ── */}
+      <Text style={styles.label}>Title</Text>
       <TextInput
-        style={styles.notes}
-        placeholder="Optional notes about your goal..."
+        style={styles.input}
+        placeholder="e.g. Hit the gym for 45 min"
         placeholderTextColor="#555"
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-        maxLength={200}
+        value={title}
+        onChangeText={setTitle}
+        maxLength={100}
+        returnKeyType="done"
       />
 
+      {/* ── Deadline ── */}
+      <Text style={styles.label}>Deadline</Text>
+      <FlatList
+        data={dateOptions}
+        keyExtractor={(d) => d.value}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.dateRow}
+        renderItem={({ item }) => {
+          const active = item.value === selectedDate;
+          return (
+            <Pressable
+              style={[styles.dateChip, active && styles.dateChipActive]}
+              onPress={() => setSelectedDate(item.value)}
+            >
+              <Text style={[styles.dateChipLabel, active && styles.dateChipLabelActive]}>
+                {item.label}
+              </Text>
+              <Text style={[styles.dateChipSub, active && styles.dateChipSubActive]}>
+                {item.sublabel}
+              </Text>
+            </Pressable>
+          );
+        }}
+      />
+
+      {/* ── Submit ── */}
       <Pressable
-        style={styles.createButton}
+        style={[styles.createBtn, !canSubmit && styles.createBtnDisabled]}
         onPress={handleCreate}
-        disabled={createGoal.isPending}
+        disabled={!canSubmit || createGoal.isPending}
       >
-        {createGoal.isPending
-          ? <ActivityIndicator color="#000" />
-          : <Text style={styles.createButtonText}>Create Goal & Start Camera</Text>
-        }
+        {createGoal.isPending ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text style={styles.createBtnText}>Create Goal</Text>
+        )}
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A', padding: 24, paddingTop: 60 },
-  closeBtn: { position: 'absolute', top: 60, right: 24, zIndex: 10 },
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  content: { padding: 24, paddingTop: 60, paddingBottom: 48 },
+
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 32 },
+  closeBtn: { marginRight: 16 },
   closeBtnText: { color: '#888', fontSize: 20 },
-  title: { fontSize: 28, fontWeight: '800', color: '#FFF', marginBottom: 12 },
-  metaRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  badge: {
-    backgroundColor: '#1A1A1A', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#F5A62360',
+  heading: { fontSize: 26, fontWeight: '800', color: '#FFF' },
+
+  label: { fontSize: 12, color: '#888', fontWeight: '600', letterSpacing: 0.8, marginBottom: 10, marginTop: 24 },
+
+  // Goal type grid
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  typeCard: {
+    width: '47%',
+    backgroundColor: '#111',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#222',
+    gap: 6,
   },
-  difficultyBadge: { borderColor: '#55555560' },
-  badgeText: { color: '#F5A623', fontSize: 13, fontWeight: '600' },
-  description: { color: '#888', fontSize: 15, lineHeight: 22, marginBottom: 16 },
-  expiryBox: {
-    backgroundColor: '#1A0A00', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#F5A62340', marginBottom: 12,
+  typeCardActive: { borderColor: '#F5A623', backgroundColor: '#1A1200' },
+  typeName: { fontSize: 15, fontWeight: '700', color: '#AAA', lineHeight: 20 },
+  typeNameActive: { color: '#FFF' },
+  typeCoins: { fontSize: 12, color: '#F5A623', fontWeight: '600' },
+
+  // Title input
+  input: {
+    backgroundColor: '#111',
+    borderRadius: 12,
+    padding: 14,
+    color: '#FFF',
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: '#222',
   },
-  expiryText: { color: '#F5A623', fontSize: 13, lineHeight: 18 },
-  infoBox: {
-    backgroundColor: '#0A1A0A', borderRadius: 10, padding: 12,
-    borderWidth: 1, borderColor: '#2A4A2A', marginBottom: 20,
+
+  // Date chips
+  dateRow: { gap: 8, paddingVertical: 4 },
+  dateChip: {
+    backgroundColor: '#111',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#222',
+    alignItems: 'center',
+    minWidth: 72,
   },
-  infoText: { color: '#6AB06A', fontSize: 13, lineHeight: 18 },
-  notes: {
-    backgroundColor: '#1A1A1A', borderRadius: 12, padding: 14,
-    color: '#FFF', fontSize: 15, minHeight: 80, marginBottom: 24,
-    textAlignVertical: 'top',
+  dateChipActive: { backgroundColor: '#1A1200', borderColor: '#F5A623' },
+  dateChipLabel: { fontSize: 14, fontWeight: '700', color: '#AAA' },
+  dateChipLabelActive: { color: '#F5A623' },
+  dateChipSub: { fontSize: 11, color: '#555', marginTop: 2 },
+  dateChipSubActive: { color: '#F5A62399' },
+
+  // Create button
+  createBtn: {
+    backgroundColor: '#F5A623',
+    borderRadius: 14,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 36,
   },
-  createButton: {
-    backgroundColor: '#F5A623', borderRadius: 12, height: 56,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  createButtonText: { color: '#000', fontSize: 16, fontWeight: '700' },
-  errorText: { color: '#888', textAlign: 'center', marginTop: 100 },
+  createBtnDisabled: { opacity: 0.35 },
+  createBtnText: { color: '#000', fontSize: 16, fontWeight: '800' },
 });

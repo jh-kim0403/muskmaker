@@ -12,6 +12,8 @@ class UserResponse(BaseModel):
     timezone: str
     subscription_tier: str
     subscription_expires_at: datetime | None
+    has_completed_onboarding: bool
+    onboarding_completed_at: datetime | None
     coin_balance: int
     is_premium: bool
     created_at: datetime

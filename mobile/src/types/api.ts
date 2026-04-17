@@ -11,6 +11,7 @@ export interface User {
   subscription_expires_at: string | null;
   coin_balance: number;
   is_premium: boolean;
+  has_completed_onboarding: boolean;
   created_at: string;
 }
 
@@ -25,20 +26,11 @@ export interface GoalType {
   supports_location_path: boolean;
 }
 
-export interface GoalAvailability {
-  goal_type_id: string;
-  slug: string;
-  name: string;
-  coin_reward: number;
-  already_created_today: boolean;
-  existing_goal_id: string | null;
-  existing_goal_status: string | null;
-}
-
 export interface Goal {
   id: string;
   goal_type_id: string;
   goal_type: GoalType;
+  title: string;
   status: 'active' | 'submitted' | 'approved' | 'rejected' | 'expired';
   notes: string | null;
   local_goal_date: string;

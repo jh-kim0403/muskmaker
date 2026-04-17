@@ -18,11 +18,12 @@ export default function PreviewScreen() {
   const photoIndex = parseInt(indexParam ?? '0', 10);
 
   const {
-    photos, verificationPath, location, requiredPhotoCount, isReadyToSubmit, resetFlow,
+    photos, verificationPath, location, requiredPhotoCount, isReadyToSubmit, resetFlow, removePhoto,
   } = useVerificationStore();
   const submitVerification = useSubmitVerification();
   const setUser = useAuthStore((s) => s.setUser);
-  const isPremium = useAuthStore((s) => s.isPremium)();
+  const user = useAuthStore((s) => s.user);
+  const isPremium = user?.subscription_tier === 'premium';
 
   const [showPostAd, setShowPostAd] = useState(false);
   const [submittedVerification, setSubmittedVerification] = useState<any>(null);
@@ -32,7 +33,7 @@ export default function PreviewScreen() {
   const needsMorePhotos = photos.length < required;
 
   const handleRetake = () => {
-    // Go back to camera for this photo index
+    removePhoto(photoIndex);
     router.back();
   };
 

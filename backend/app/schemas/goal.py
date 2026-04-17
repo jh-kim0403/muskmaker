@@ -8,6 +8,7 @@ class GoalTypeResponse(BaseModel):
     name: str
     slug: str
     description: str | None
+    type: str
     icon_url: str | None
     coin_reward: int
     difficulty: str
@@ -18,13 +19,15 @@ class GoalTypeResponse(BaseModel):
 
 class CreateGoalRequest(BaseModel):
     goal_type_id: UUID
-    notes: str | None = None
+    title: str
+    expire_user_local_date: date
 
 
 class GoalResponse(BaseModel):
     id: UUID
     goal_type_id: UUID
     goal_type: GoalTypeResponse
+    title: str
     status: str
     notes: str | None
     local_goal_date: date
@@ -35,15 +38,3 @@ class GoalResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class GoalAvailabilityResponse(BaseModel):
-    """
-    Returned before goal creation so the UI can show which types
-    are already used today and which are still available.
-    """
-    goal_type_id: UUID
-    slug: str
-    name: str
-    coin_reward: int
-    already_created_today: bool
-    existing_goal_id: UUID | None  # set when already_created_today is True
-    existing_goal_status: str | None

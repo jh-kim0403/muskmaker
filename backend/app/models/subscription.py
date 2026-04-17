@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, ForeignKey, TIMESTAMP, Text, func
+from sqlalchemy import ForeignKey, Index, TIMESTAMP, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, uuid_pk
@@ -26,12 +26,12 @@ class SubscriptionEvent(Base):
 
     # May be NULL if webhook arrives before user creation
     user_id: Mapped[uuid.UUID | None]   = mapped_column(ForeignKey("users.id"))
-    firebase_uid: Mapped[str | None]    = mapped_column(String)  # fallback lookup
+    firebase_uid: Mapped[str | None]    = mapped_column(Text)  # fallback lookup
 
-    revenuecat_event_type: Mapped[str]  = mapped_column(String, nullable=False)  # 'INITIAL_PURCHASE', 'RENEWAL', etc.
-    revenuecat_event_id: Mapped[str]    = mapped_column(String, nullable=False, unique=True)  # idempotency key
-    product_id: Mapped[str | None]      = mapped_column(String)
-    period_type: Mapped[str | None]     = mapped_column(String)  # 'NORMAL', 'TRIAL', 'INTRO'
+    revenuecat_event_type: Mapped[str]  = mapped_column(Text, nullable=False)  # 'INITIAL_PURCHASE', 'RENEWAL', etc.
+    revenuecat_event_id: Mapped[str]    = mapped_column(Text, nullable=False, unique=True)  # idempotency key
+    product_id: Mapped[str | None]      = mapped_column(Text)
+    period_type: Mapped[str | None]     = mapped_column(Text)  # 'NORMAL', 'TRIAL', 'INTRO'
     purchased_at: Mapped[datetime | None]   = mapped_column(TIMESTAMP(timezone=True))
     expires_at: Mapped[datetime | None]     = mapped_column(TIMESTAMP(timezone=True))
 
@@ -48,3 +48,12 @@ class SubscriptionEvent(Base):
 
     def __repr__(self) -> str:
         return f"<SubscriptionEvent type={self.revenuecat_event_type} rc_id={self.revenuecat_event_id}>"
+
+
+Index("idx_sub_events_user", SubscriptionEvent.user_id, SubscriptionEvent.created_at.desc())
+Index(
+    "idx_sub_events_type",
+    SubscriptionEvent.revenuecat_event_type,
+    SubscriptionEvent.processed_at,
+)
+Index("idx_sub_events_rc_id", SubscriptionEvent.revenuecat_event_id)

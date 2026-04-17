@@ -19,7 +19,7 @@ def uuid_pk() -> Mapped[uuid.UUID]:
 
         id: Mapped[uuid.UUID] = uuid_pk()
     """
-    return mapped_column(primary_key=True, default=uuid.uuid4)
+    return mapped_column(primary_key=True, default=uuid.uuid4, server_default=func.gen_random_uuid())
 
 
 def now_utc() -> Mapped[datetime]:

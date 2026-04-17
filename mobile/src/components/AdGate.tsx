@@ -11,7 +11,7 @@
  *  - onComplete/onSkip are always called even if ad fails to load
  */
 import { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from 'react-native';
 import {
   InterstitialAd,
   AdEventType,
@@ -19,9 +19,13 @@ import {
 } from 'react-native-google-mobile-ads';
 import Constants from 'expo-constants';
 
+const admobConfig = Constants.expoConfig?.extra?.admob;
 const AD_UNIT_ID = __DEV__
   ? TestIds.INTERSTITIAL
-  : (Constants.expoConfig?.extra?.admobInterstitialId ?? TestIds.INTERSTITIAL);
+  : (Platform.select({
+      ios: admobConfig?.iosInterstitialAdUnitId,
+      android: admobConfig?.androidInterstitialAdUnitId,
+    }) ?? TestIds.INTERSTITIAL);
 
 interface AdGateProps {
   placement: 'verification_preroll' | 'verification_postroll';

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
-import { useUpdateProfile, useUpdateTimezone } from '@/api/hooks';
+import { useUpdateProfile, useUpdateTimezone, useCompleteOnboarding } from '@/api/hooks';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function OnboardingScreen() {
@@ -15,6 +15,7 @@ export default function OnboardingScreen() {
   const { user, setUser } = useAuthStore();
   const updateProfile = useUpdateProfile();
   const updateTimezone = useUpdateTimezone();
+  const completeOnboarding = useCompleteOnboarding();
 
   const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -27,11 +28,12 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     try {
-      // Confirm timezone — backend may have already set it from app launch
       await updateTimezone.mutateAsync(deviceTimezone);
     } catch {
       // May be rate limited if already set — fine to proceed
     }
+    const updated = await completeOnboarding.mutateAsync();
+    setUser(updated);
     router.replace('/(tabs)');
   };
 

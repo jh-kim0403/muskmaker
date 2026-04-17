@@ -14,8 +14,9 @@ export default function ProfileTab() {
   const { data: user } = useMe();
   const { data: prefs } = useNotificationPreferences();
   const updatePrefs = useUpdateNotificationPreferences();
-  const { clearAuth, isPremium: isPremiumFn } = useAuthStore();
-  const isPremium = isPremiumFn();
+  const { clearAuth } = useAuthStore();
+  const isPremium = user?.subscription_tier === 'premium';
+  const displayEmail = user?.email && !isApplePrivateRelayEmail(user.email) ? user.email : null;
 
   const handleSignOut = async () => {
     Alert.alert('Sign out', 'Are you sure?', [
@@ -47,7 +48,7 @@ export default function ProfileTab() {
       {/* User info */}
       <View style={styles.userCard}>
         <Text style={styles.userName}>{user?.display_name ?? 'Anonymous'}</Text>
-        <Text style={styles.userEmail}>{user?.email ?? ''}</Text>
+        {displayEmail && <Text style={styles.userEmail}>{displayEmail}</Text>}
         <View style={[styles.tierBadge, isPremium && styles.tierBadgePremium]}>
           <Text style={styles.tierBadgeText}>{isPremium ? '✨ Premium' : 'Free'}</Text>
         </View>
@@ -111,6 +112,9 @@ export default function ProfileTab() {
     </ScrollView>
   );
 }
+
+const isApplePrivateRelayEmail = (email: string) =>
+  email.trim().toLowerCase().endsWith('@privaterelay.appleid.com');
 
 function ToggleRow({
   label, value, onToggle,

@@ -3,9 +3,10 @@ import { useAuthStore } from '@/stores/authStore';
 
 export default function AuthLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
 
-  // If already authenticated, redirect to the main app
-  if (isAuthenticated) {
+  // If already authenticated and onboarding complete, redirect to the main app
+  if (isAuthenticated && user?.has_completed_onboarding) {
     return <Redirect href="/(tabs)" />;
   }
 

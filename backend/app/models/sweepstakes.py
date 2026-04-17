@@ -1,8 +1,17 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    String, Integer, BigInteger, Boolean, ForeignKey, TIMESTAMP,
-    CheckConstraint, Enum as SAEnum, Text, func
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    TIMESTAMP,
+    Text,
+    func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, uuid_pk
@@ -21,20 +30,21 @@ class Sweepstakes(Base):
     __tablename__ = "sweepstakes"
     __table_args__ = (
         CheckConstraint("ends_at > starts_at",                     name="chk_dates"),
-        CheckConstraint("draw_at IS NULL OR draw_at >= ends_at",   name="chk_draw_after"),
+        CheckConstraint("draw_at IS NULL OR draw_at >= ends_at",   name="chk_draw_after_end"),
         CheckConstraint("winner_count >= 1",                       name="chk_winner_count"),
     )
 
     id: Mapped[uuid.UUID]           = uuid_pk()
-    title: Mapped[str]              = mapped_column(String, nullable=False)
+    title: Mapped[str]              = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    prize_description: Mapped[str]  = mapped_column(String, nullable=False)  # "$50 Amazon Gift Card"
-    rules_url: Mapped[str | None]   = mapped_column(String)
+    prize_description: Mapped[str]  = mapped_column(Text, nullable=False)  # "$50 Amazon Gift Card"
+    rules_url: Mapped[str | None]   = mapped_column(Text)
 
     status: Mapped[str]             = mapped_column(
         SAEnum("upcoming", "active", "drawing", "completed", "cancelled", name="sweepstakes_status"),
         nullable=False,
         default="upcoming",
+        server_default="upcoming",
     )
 
     starts_at: Mapped[datetime]     = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -42,13 +52,23 @@ class Sweepstakes(Base):
     draw_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
     # Denormalized for fast odds display. Updated atomically on each entry insert.
-    total_entries_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    winner_count: Mapped[int]        = mapped_column(Integer, nullable=False, default=1)
+    total_entries_count: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    winner_count: Mapped[int]        = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
 
     # Apple guideline 5.3 compliance fields
-    no_purchase_necessary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    sponsor_name: Mapped[str]           = mapped_column(String, nullable=False, default="MuskMaker")
-    apple_not_sponsor: Mapped[bool]     = mapped_column(Boolean, nullable=False, default=True)
+    no_purchase_necessary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    sponsor_name: Mapped[str]           = mapped_column(
+        Text, nullable=False, default="MuskMaker", server_default="MuskMaker"
+    )
+    apple_not_sponsor: Mapped[bool]     = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
     created_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -75,6 +95,9 @@ class SweepstakesEntry(Base):
       probability   = user_entries / total_entries
     """
     __tablename__ = "sweepstakes_entries"
+    __table_args__ = (
+        CheckConstraint("coins_entered > 0", name="chk_entries_coins_entered_positive"),
+    )
 
     id: Mapped[uuid.UUID]               = uuid_pk()
     sweepstakes_id: Mapped[uuid.UUID]   = mapped_column(ForeignKey("sweepstakes.id"), nullable=False)
@@ -118,8 +141,10 @@ class SweepstakesDraw(Base):
     total_participants: Mapped[int]         = mapped_column(Integer, nullable=False)
 
     # Cryptographic audit trail
-    algorithm_version: Mapped[str]          = mapped_column(String, nullable=False, default="crypto_random_v1")
-    random_seed: Mapped[str | None]         = mapped_column(String)
+    algorithm_version: Mapped[str]          = mapped_column(
+        Text, nullable=False, default="crypto_random_v1", server_default="crypto_random_v1"
+    )
+    random_seed: Mapped[str | None]         = mapped_column(Text)
 
     created_at: Mapped[datetime]            = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
@@ -143,11 +168,12 @@ class SweepstakesWinner(Base):
     # Allows full audit: expand entry list → find slot N → verify user_id matches.
     winning_entry_number: Mapped[int]   = mapped_column(BigInteger, nullable=False)
 
-    prize_description: Mapped[str]      = mapped_column(String, nullable=False)
+    prize_description: Mapped[str]      = mapped_column(Text, nullable=False)
     claim_status: Mapped[str]           = mapped_column(
         SAEnum("pending", "notified", "claimed", "expired", "forfeited", name="claim_status"),
         nullable=False,
         default="pending",
+        server_default="pending",
     )
 
     notified_at: Mapped[datetime | None]    = mapped_column(TIMESTAMP(timezone=True))
@@ -164,3 +190,22 @@ class SweepstakesWinner(Base):
 
     def __repr__(self) -> str:
         return f"<SweepstakesWinner id={self.id} user={self.user_id} status={self.claim_status}>"
+
+
+Index("idx_sweepstakes_status", Sweepstakes.status, Sweepstakes.ends_at.desc())
+Index(
+    "idx_sweepstakes_active",
+    Sweepstakes.starts_at,
+    Sweepstakes.ends_at,
+    postgresql_where=Sweepstakes.status == "active",
+)
+Index("idx_entries_sweepstakes", SweepstakesEntry.sweepstakes_id, SweepstakesEntry.entered_at)
+Index("idx_entries_user_sweep", SweepstakesEntry.user_id, SweepstakesEntry.sweepstakes_id)
+Index("idx_entries_user_total", SweepstakesEntry.sweepstakes_id, SweepstakesEntry.user_id)
+Index("idx_winners_user", SweepstakesWinner.user_id, SweepstakesWinner.created_at.desc())
+Index("idx_winners_draw", SweepstakesWinner.draw_id)
+Index(
+    "idx_winners_claim_status",
+    SweepstakesWinner.claim_status,
+    postgresql_where=SweepstakesWinner.claim_status.in_(["pending", "notified"]),
+)

@@ -47,6 +47,9 @@ httpx = "^0.28.1"
 # Background task scheduling
 apscheduler = "^3.11.0"
 
+# Async task queue
+celery = {version = "^5.4", extras = ["librabbitmq"]}
+
 # Security
 python-jose = { version = "^3.4.0", extras = ["cryptography"] }
 

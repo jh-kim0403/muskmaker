@@ -4,8 +4,17 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev": "APP_ENV=development expo start",
+    "start:test": "APP_ENV=test expo start",
+    "start:prod": "APP_ENV=production expo start",
     "android": "expo run:android",
+    "android:dev": "APP_ENV=development expo run:android",
+    "android:test": "APP_ENV=test expo run:android",
+    "android:prod": "APP_ENV=production expo run:android",
     "ios": "expo run:ios",
+    "ios:dev": "APP_ENV=development expo run:ios",
+    "ios:test": "APP_ENV=test expo run:ios",
+    "ios:prod": "APP_ENV=production expo run:ios",
     "lint": "eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
   },

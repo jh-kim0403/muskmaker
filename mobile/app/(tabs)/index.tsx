@@ -14,7 +14,7 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 
-import { useTodaysAvailability } from '@/api/hooks';
+import { useTodaysGoals } from '@/api/hooks';
 import { useAuthStore } from '@/stores/authStore';
 import { GoalAvailabilityCard } from '@/components/GoalAvailabilityCard';
 
@@ -23,10 +23,10 @@ dayjs.extend(timezone);
 
 export default function TodayScreen() {
   const user = useAuthStore((s) => s.user);
-  const isPremium = useAuthStore((s) => s.isPremium)();
+  const isPremium = user?.subscription_tier === 'premium';
   const coinBalance = useAuthStore((s) => s.coinBalance)();
 
-  const { data: availability, isLoading, refetch, isRefetching } = useTodaysAvailability();
+  const { data: goals, isLoading, refetch, isRefetching } = useTodaysGoals();
 
   // Show when the user's local day ends
   const userTz = user?.timezone ?? 'UTC';
@@ -60,22 +60,19 @@ export default function TodayScreen() {
         </Pressable>
       )}
 
+      {/* Create goal CTA */}
+      <Pressable style={styles.createBtn} onPress={() => router.push('/goals/create')}>
+        <Text style={styles.createBtnText}>+ Create New Goal</Text>
+      </Pressable>
+
       {/* Goal list */}
       <FlatList
-        data={availability ?? []}
-        keyExtractor={(item) => item.goal_type_id}
+        data={goals ?? []}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <GoalAvailabilityCard
             item={item}
-            onPress={() => {
-              if (item.already_created_today && item.existing_goal_id) {
-                // Navigate to existing goal's verification flow
-                router.push(`/verification/camera?goalId=${item.existing_goal_id}`);
-              } else {
-                // Create new goal
-                router.push(`/goals/create?goalTypeId=${item.goal_type_id}`);
-              }
-            }}
+            onPress={() => router.push(`/verification/camera?goalId=${item.id}`)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -118,4 +115,9 @@ const styles = StyleSheet.create({
   premiumBannerText: { color: '#F5A623', fontSize: 13, textAlign: 'center' },
   list: { paddingHorizontal: 20, paddingBottom: 32, gap: 12 },
   emptyText: { color: '#555', textAlign: 'center', marginTop: 40, fontSize: 15 },
+  createBtn: {
+    marginHorizontal: 20, marginBottom: 12,
+    backgroundColor: '#F5A623', borderRadius: 12, padding: 14, alignItems: 'center',
+  },
+  createBtnText: { color: '#000', fontSize: 15, fontWeight: '700' },
 });

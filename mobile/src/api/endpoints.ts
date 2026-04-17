@@ -7,7 +7,6 @@ import { apiClient } from './client';
 import type {
   User,
   GoalType,
-  GoalAvailability,
   Goal,
   UploadUrlResponse,
   SubmitVerificationPayload,
@@ -29,6 +28,9 @@ export const updateTimezone = (timezone: string): Promise<User> =>
 export const updateProfile = (data: { display_name?: string }): Promise<User> =>
   apiClient.patch('/users/me', data).then((r) => r.data);
 
+export const completeOnboarding = (): Promise<User> =>
+  apiClient.post('/users/me/complete-onboarding').then((r) => r.data);
+
 export const registerPushToken = (expo_push_token: string, platform: 'ios' | 'android') =>
   apiClient.post('/users/me/push-token', { expo_push_token, platform });
 
@@ -44,11 +46,15 @@ export const updateNotificationPreferences = (
 export const fetchGoalTypes = (): Promise<GoalType[]> =>
   apiClient.get('/goals/types').then((r) => r.data);
 
-export const fetchTodaysAvailability = (): Promise<GoalAvailability[]> =>
+export const fetchTodaysGoals = (): Promise<Goal[]> =>
   apiClient.get('/goals/today').then((r) => r.data);
 
-export const createGoal = (data: { goal_type_id: string; notes?: string }): Promise<Goal> =>
-  apiClient.post('/goals/', data).then((r) => r.data);
+export const createGoal = (data: {
+  goal_type_id: string;
+  title: string;
+  expire_user_local_date: string;
+}): Promise<Goal> =>
+  apiClient.post('/goals/new', data).then((r) => r.data);
 
 export const fetchGoal = (goalId: string): Promise<Goal> =>
   apiClient.get(`/goals/${goalId}`).then((r) => r.data);
