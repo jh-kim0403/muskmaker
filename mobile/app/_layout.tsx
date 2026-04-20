@@ -18,7 +18,7 @@ const firebaseAuth = getAuth();
 import Purchases from 'react-native-purchases';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 
 import { useAuthStore } from '@/stores/authStore';
 import { fetchMe, registerPushToken, updateTimezone } from '@/api/endpoints';
@@ -113,6 +113,25 @@ export default function RootLayout() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // ── AppState listener — re-register push token on foreground ───────────────
+  // Catches the case where a user denied permission at login, then enabled it
+  // in OS Settings and returned to the app.
+  useEffect(() => {
+    let previousState = AppState.currentState;
+
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (previousState !== 'active' && nextState === 'active') {
+        const uid = useAuthStore.getState().firebaseUid;
+        if (uid) {
+          registerExpoPushToken(uid);
+        }
+      }
+      previousState = nextState;
+    });
+
+    return () => subscription.remove();
   }, []);
 
   return (

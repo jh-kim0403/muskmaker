@@ -14,9 +14,9 @@
  */
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Alert, ActivityIndicator,
+  View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Linking,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 import * as Location from 'expo-location';
 
@@ -43,6 +43,14 @@ export default function CameraScreen() {
     setUploading, photos, verificationPath, requiredPhotoCount,
     goalId: flowGoalId,
   } = useVerificationStore();
+
+  const [isCameraActive, setIsCameraActive] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setIsCameraActive(true);
+      return () => setIsCameraActive(false);
+    }, [])
+  );
 
   const [adDismissed, setAdDismissed] = useState(isPremium); // premium users skip ad
   const [capturing, setCapturing] = useState(false);
@@ -82,21 +90,27 @@ export default function CameraScreen() {
       if (status !== 'granted') {
         Alert.alert(
           'Location required',
-          'The 1-photo fast path requires location access. You can use the standard 2-photo path instead.',
-          [{ text: 'Use 2 photos', onPress: () => handleSelectPath('premium_ai_standard') }, { text: 'Cancel' }]
+          'The 1-photo fast path requires location access. Allow it in Settings or use the standard 2-photo path instead.',
+          [
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            { text: 'Use 2 photos', onPress: () => handleSelectPath('premium_ai_standard') },
+            { text: 'Cancel' },
+          ]
         );
         return;
       }
       // Capture location now
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      startFlow(goalId, path);
       setLocation({
         lat: loc.coords.latitude,
         lng: loc.coords.longitude,
         accuracyMeters: loc.coords.accuracy ?? 100,
         capturedAt: new Date().toISOString(),
       });
+    } else {
+      startFlow(goalId, path);
     }
-    startFlow(goalId, path);
     setSelectedPath(path);
     setShowPathSelector(false);
   };
@@ -129,8 +143,8 @@ export default function CameraScreen() {
       setPhotoS3Key(photoIndex, s3_key);
       setUploading(false);
 
-      // Navigate to preview after each photo
-      router.push(`/verification/preview?goalId=${goalId}&photoIndex=${photoIndex}`);
+      // Replace camera with preview so camera is removed from the stack
+      router.replace(`/verification/preview?goalId=${goalId}&photoIndex=${photoIndex}`);
     } catch (err: any) {
       Alert.alert('Capture failed', err.detail ?? err.message ?? 'Please try again');
     } finally {
@@ -207,7 +221,7 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={true}
+        isActive={isCameraActive}
         photo={true}
       />
 

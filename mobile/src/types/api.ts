@@ -18,7 +18,7 @@ export interface User {
 export interface GoalType {
   id: string;
   name: string;
-  slug: string;
+  maps_query_word: string;
   description: string | null;
   icon_url: string | null;
   coin_reward: number;

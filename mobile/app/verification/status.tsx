@@ -40,7 +40,9 @@ export default function VerificationStatusScreen() {
 
   const { status, coins_awarded, rejection_reason, verification_path } = verification;
 
-  const isManualReview = status === 'pending_review' || status === 'in_review';
+  const isPending = status === 'pending_review' || status === 'in_review';
+  const isAiPending = isPending && (verification_path === 'premium_ai_standard' || verification_path === 'premium_ai_location');
+  const isManualReview = isPending && verification_path === 'free_manual';
 
   return (
     <View style={styles.container}>
@@ -55,6 +57,17 @@ export default function VerificationStatusScreen() {
           {isPremium && (
             <Text style={styles.resultNote}>Instant AI verification ✨</Text>
           )}
+        </View>
+      )}
+
+      {/* AI processing (premium paths) */}
+      {isAiPending && (
+        <View style={styles.resultBox}>
+          <Text style={styles.resultEmoji}>✨</Text>
+          <Text style={styles.resultTitle}>AI Verification</Text>
+          <Text style={styles.resultSubtitle}>
+            AI will verify your goal within a few seconds.
+          </Text>
         </View>
       )}
 

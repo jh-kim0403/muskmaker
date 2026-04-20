@@ -34,7 +34,7 @@ export default function PreviewScreen() {
 
   const handleRetake = () => {
     removePhoto(photoIndex);
-    router.back();
+    router.replace(`/verification/camera?goalId=${goalId}`);
   };
 
   const handleConfirmAndNext = () => {
