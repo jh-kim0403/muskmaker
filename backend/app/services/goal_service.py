@@ -135,26 +135,3 @@ class GoalService:
             raise HTTPException(status_code=404, detail="Goal not found")
         return goal
 
-    @staticmethod
-    async def expire_stale_goals(db: AsyncSession) -> int:
-        """
-        Called by the background worker every 15 minutes.
-        Marks as 'expired' any active goal whose expires_at has passed.
-        Returns the count of goals expired.
-        """
-        from sqlalchemy import update
-        now_utc = datetime.now(timezone.utc)
-        result = await db.execute(
-            update(Goal)
-            .where(
-                Goal.status == "active",
-                Goal.expires_at < now_utc,
-            )
-            .values(status="expired")
-            .returning(Goal.id)
-        )
-        expired_ids = result.fetchall()
-        count = len(expired_ids)
-        if count:
-            logger.info("Expired %d stale goals", count)
-        return count

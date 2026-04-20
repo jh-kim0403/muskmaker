@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     TIMESTAMP,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -106,3 +107,73 @@ class PushToken(Base):
 
 
 Index("idx_push_tokens_user", PushToken.user_id, postgresql_where=PushToken.is_active.is_(True))
+
+
+class NotificationTemplate(Base):
+    """
+    Storage of the notification templates for each event type and tone.
+    Multiple templates per event_type+tone — the service picks one at random.
+
+    goal_type_id: when set, this template is specific to that goal type and
+    takes priority over generic templates (goal_type_id IS NULL) at query time.
+    """
+    __tablename__ = "notification_templates"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    event_type: Mapped[str] = mapped_column(
+        SAEnum(
+            "goal_missed", "goal_reminder_24h", "goal_reminder_2h", "sweep_results",
+            name="notification_event_type",
+        ),
+        nullable=False,
+    )
+    tone: Mapped[str] = mapped_column(
+        SAEnum("normal", "friendly_banter", "harsh", name="notification_tone"),
+        nullable=False,
+    )
+    goal_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("goal_types.id", ondelete="SET NULL"), nullable=True
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str]  = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    goal_type: Mapped["GoalType | None"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<NotificationTemplate event={self.event_type} tone={self.tone} goal_type={self.goal_type_id}>"
+
+
+class GoalNotificationLog(Base):
+    """
+    One row per (goal, event_type) notification sent.
+    Used by the notification worker to prevent duplicate sends.
+    Deleted automatically when the goal is deleted (CASCADE).
+    """
+    __tablename__ = "goal_notification_log"
+    __table_args__ = (
+        UniqueConstraint("goal_id", "event_type", name="uq_goal_notification_log_goal_event"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    goal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("goals.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(
+        SAEnum(
+            "goal_missed", "goal_reminder_24h", "goal_reminder_2h", "sweep_results",
+            name="notification_event_type",
+        ),
+        nullable=False,
+    )
+    sent_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<GoalNotificationLog goal={self.goal_id} event={self.event_type}>"
+
+
+Index("idx_goal_notification_log_goal", GoalNotificationLog.goal_id)

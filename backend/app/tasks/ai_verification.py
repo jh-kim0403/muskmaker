@@ -1,4 +1,10 @@
+import asyncio
+import logging
+
 from app.celery_app import celery_app
+from app.tasks.handlers.ai_verification_handler import openai_verify_photo, run_location
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
@@ -8,12 +14,11 @@ from app.celery_app import celery_app
     default_retry_delay=30,
 )
 def run_ai_verification_standard(self, verification_id: str) -> None:
-    """
-    AI verification for premium_ai_standard path (2 photos, no location).
-    Loads verification from DB, calls AIService, writes result back.
-    Implementation to be filled in.
-    """
-    pass
+    try:
+        asyncio.run(openai_verify_photo(verification_id))
+    except Exception as exc:
+        logger.exception("run_ai_verification_standard failed for %s: %s", verification_id, exc)
+        raise self.retry(exc=exc)
 
 
 @celery_app.task(
@@ -23,9 +28,8 @@ def run_ai_verification_standard(self, verification_id: str) -> None:
     default_retry_delay=30,
 )
 def run_ai_verification_location(self, verification_id: str) -> None:
-    """
-    AI verification for premium_ai_location path (1 photo + GPS).
-    Loads verification from DB, calls AIService with location data, writes result back.
-    Implementation to be filled in.
-    """
-    pass
+    try:
+        asyncio.run(run_location(verification_id))
+    except Exception as exc:
+        logger.exception("run_ai_verification_location failed for %s: %s", verification_id, exc)
+        raise self.retry(exc=exc)

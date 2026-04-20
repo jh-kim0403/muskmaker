@@ -138,7 +138,7 @@ class TestAntiCheat:
 class TestNotificationToneEnforcement:
     def test_free_user_always_gets_normal_tone(self):
         """Free users must receive 'normal' tone regardless of their stored preference."""
-        from app.services.notification_service import NotificationService
+        from app.tasks.handlers.notification_handler import _resolve_tone
         from app.constants import NotificationTone
 
         free_user = MagicMock()
@@ -147,11 +147,11 @@ class TestNotificationToneEnforcement:
         prefs = MagicMock()
         prefs.notification_tone = NotificationTone.HARSH  # stored preference
 
-        effective_tone = NotificationService._resolve_tone(free_user, prefs)
+        effective_tone = _resolve_tone(free_user, prefs)
         assert effective_tone == NotificationTone.NORMAL
 
     def test_premium_user_gets_chosen_tone(self):
-        from app.services.notification_service import NotificationService
+        from app.tasks.handlers.notification_handler import _resolve_tone
         from app.constants import NotificationTone
 
         premium_user = MagicMock()
@@ -160,5 +160,5 @@ class TestNotificationToneEnforcement:
         prefs = MagicMock()
         prefs.notification_tone = NotificationTone.FRIENDLY_BANTER
 
-        effective_tone = NotificationService._resolve_tone(premium_user, prefs)
+        effective_tone = _resolve_tone(premium_user, prefs)
         assert effective_tone == NotificationTone.FRIENDLY_BANTER

@@ -30,14 +30,15 @@ class GoalType(Base):
 
     id: Mapped[uuid.UUID]           = uuid_pk()
     name: Mapped[str]               = mapped_column(Text, nullable=False)  # "Go to the gym"
-    slug: Mapped[str]               = mapped_column(Text, nullable=False, unique=True)  # "gym"
+    maps_query_word: Mapped[str]    = mapped_column(Text, nullable=False, unique=True)  # "gym"
     description: Mapped[str | None] = mapped_column(Text)
     type: Mapped[str]               = mapped_column(
         SAEnum("photo", "quiz", name="goal_type"),
         nullable=False,
     )
     icon_url: Mapped[str | None]    = mapped_column(Text)
-    ai_prompt: Mapped[str | None]   = mapped_column(Text)
+    ai_prompt_standard: Mapped[str] = mapped_column(Text, nullable=False)
+    ai_prompt_location: Mapped[str] = mapped_column(Text, nullable=False)
     # Coins awarded on successful verification.
     # This value is NEVER modified by the user's subscription tier.
     coin_reward: Mapped[int]        = mapped_column(Integer, nullable=False)
@@ -68,7 +69,7 @@ class GoalType(Base):
     goals: Mapped[list["Goal"]] = relationship(back_populates="goal_type", lazy="select")
 
     def __repr__(self) -> str:
-        return f"<GoalType slug={self.slug} coins={self.coin_reward}>"
+        return f"<GoalType maps_query_word={self.maps_query_word} coins={self.coin_reward}>"
 
 
 class Goal(Base):
@@ -133,7 +134,7 @@ class Goal(Base):
 
 
 Index("idx_goal_types_active", GoalType.is_active, GoalType.display_order)
-Index("idx_goal_types_slug", GoalType.slug)
+Index("idx_goal_types_maps_query_word", GoalType.maps_query_word)
 Index("idx_goals_user_date", Goal.user_id, Goal.local_goal_date.desc())
 Index("idx_goals_status", Goal.status, postgresql_where=Goal.status.in_(["active", "submitted"]))
 Index("idx_goals_expires_at", Goal.expires_at, postgresql_where=Goal.status == "active")

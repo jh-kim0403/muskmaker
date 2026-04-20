@@ -51,7 +51,7 @@ class Verification(Base):
     )
 
     id: Mapped[uuid.UUID]       = uuid_pk()
-    goal_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey("goals.id"), nullable=False, unique=True)
+    goal_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey("goals.id", ondelete="CASCADE"), nullable=False, unique=True)
     user_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey("users.id"), nullable=False)
 
     status: Mapped[str]         = mapped_column(

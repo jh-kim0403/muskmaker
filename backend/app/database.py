@@ -24,6 +24,25 @@ AsyncSessionFactory = async_sessionmaker(
     autoflush=False,
 )
 
+# ── Celery worker engine ────────────────────────────────────────────────────────
+# Celery tasks run async code via asyncio.run(), which creates a new event loop
+# per task. A pooled engine holds asyncpg connections tied to a previous loop,
+# causing "Future attached to a different loop" errors. NullPool opens a fresh
+# connection for each task and closes it immediately — no cross-loop reuse.
+celery_engine = create_async_engine(
+    settings.database_url,
+    echo=settings.debug,
+    poolclass=NullPool,
+)
+
+CelerySessionFactory = async_sessionmaker(
+    bind=celery_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
 
 async def get_db() -> AsyncSession:
     """

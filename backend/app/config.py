@@ -62,8 +62,11 @@ class Settings(BaseSettings):
     # ── Sweepstakes ───────────────────────────────────────────────────────
     sweep_winner_claim_days: int = 30  # days after notification to claim prize
 
+    # ── Serper Maps (location verification) ──────────────────────────────
+    serper_api_key: str
+
     # ── Celery / RabbitMQ ─────────────────────────────────────────────────
-    rabbitmq_url: str = "amqp://guest:guest@localhost:5672//"
+    rabbitmq_url: str
 
     # ── CORS ──────────────────────────────────────────────────────────────
     cors_origins: list[str] = ["*"]

@@ -29,7 +29,7 @@ class AIService:
     @staticmethod
     async def run_verification(
         goal_type_name: str,
-        goal_type_slug: str,
+        goal_type_maps_query_word: str,
         photo_urls: list[str],            # pre-signed S3 URLs, ordered by photo_index
         exif_captured_at: datetime | None,
         server_receipt_at: datetime,
@@ -74,7 +74,7 @@ class AIService:
         try:
             content_result = await AIService._call_openai_vision(
                 goal_type_name=goal_type_name,
-                goal_type_slug=goal_type_slug,
+                goal_type_maps_query_word=goal_type_maps_query_word,
                 photo_urls=photo_urls,
             )
             result["content_check"] = content_result["verdict"]
@@ -90,7 +90,7 @@ class AIService:
         # ── Signal 3: Location plausibility (location path only) ─────────────
         if location_lat is not None and location_lng is not None:
             loc_check = AIService._check_location_plausibility(
-                goal_type_slug=goal_type_slug,
+                goal_type_maps_query_word=goal_type_maps_query_word,
                 lat=location_lat,
                 lng=location_lng,
             )
@@ -139,7 +139,7 @@ class AIService:
     @staticmethod
     async def _call_openai_vision(
         goal_type_name: str,
-        goal_type_slug: str,
+        goal_type_maps_query_word: str,
         photo_urls: list[str],
     ) -> dict:
         """
@@ -189,7 +189,7 @@ class AIService:
 
     @staticmethod
     def _check_location_plausibility(
-        goal_type_slug: str,
+        goal_type_maps_query_word: str,
         lat: float,
         lng: float,
     ) -> str:

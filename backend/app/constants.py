@@ -93,6 +93,14 @@ class NotificationTone:
     HARSH               = "harsh"
 
 
+# ── Notification event types ──────────────────────────────────────────────────
+class NotificationEvent:
+    GOAL_MISSED         = "goal_missed"
+    GOAL_REMINDER_24H   = "goal_reminder_24h"
+    GOAL_REMINDER_2H    = "goal_reminder_2h"
+    SWEEP_RESULTS       = "sweep_results"
+
+
 # ── Subscription tiers ────────────────────────────────────────────────────────
 class SubscriptionTier:
     FREE    = "free"

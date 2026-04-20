@@ -44,10 +44,7 @@ slowapi = "^0.1.9"
 # HTTP client (Expo push, outbound webhooks)
 httpx = "^0.28.1"
 
-# Background task scheduling
-apscheduler = "^3.11.0"
-
-# Async task queue
+# Async task queue + periodic scheduling (Celery Beat)
 celery = {version = "^5.4", extras = ["librabbitmq"]}
 
 # Security

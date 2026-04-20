@@ -3,15 +3,15 @@ MuskMaker FastAPI application factory.
 
 Startup order:
   1. Firebase Admin SDK initialized
-  2. APScheduler background workers started
-  3. Routers mounted
-  4. Middleware registered (order matters — outermost runs first on request)
+  2. Routers mounted
+  3. Middleware registered (order matters — outermost runs first on request)
+
+Background workers (goal expiry, notifications) run via Celery Beat.
 """
 import logging
 from contextlib import asynccontextmanager
 
 import firebase_admin
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -22,39 +22,20 @@ from app.config import get_settings
 from app.middleware.auth import FirebaseAuthMiddleware
 from app.middleware.rate_limit import limiter
 from app.routers import admin, goals, notifications, sweepstakes, users, verifications, webhooks
-from app.workers.goal_expiry_worker import expire_stale_goals
-from app.workers.notification_worker import send_goal_reminders
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-# ── Background scheduler ───────────────────────────────────────────────────────
-scheduler = AsyncIOScheduler(timezone="UTC")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ────────────────────────────────────────────────────────────────
-    # Firebase Admin SDK (used for JWT verification in every request)
     if not firebase_admin._apps:
         cred = firebase_admin.credentials.Certificate(settings.firebase_service_account_path)
         firebase_admin.initialize_app(cred)
         logger.info("Firebase Admin SDK initialized")
 
-    # Background workers
-    # Expire stale goals every 15 minutes (goals whose local day has ended)
-    scheduler.add_job(expire_stale_goals, "interval", minutes=15, id="goal_expiry")
-    # Send goal-expiry reminder pushes every 5 minutes
-    scheduler.add_job(send_goal_reminders, "interval", minutes=5, id="goal_reminders")
-    scheduler.start()
-    logger.info("Background scheduler started")
-
     yield
-
-    # ── Shutdown ───────────────────────────────────────────────────────────────
-    scheduler.shutdown(wait=False)
-    logger.info("Background scheduler stopped")
 
 
 # ── App factory ────────────────────────────────────────────────────────────────

@@ -145,7 +145,7 @@ class AdminReview(Base):
     )
 
     id: Mapped[uuid.UUID]               = uuid_pk()
-    verification_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey("verifications.id"), nullable=False, unique=True)
+    verification_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey("verifications.id", ondelete="CASCADE"), nullable=False, unique=True)
     user_id: Mapped[uuid.UUID]          = mapped_column(ForeignKey("users.id"), nullable=False)
 
     # Priority 1 (urgent) to 10 (low). Default 5.

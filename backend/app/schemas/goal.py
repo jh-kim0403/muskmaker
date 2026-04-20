@@ -6,7 +6,7 @@ from pydantic import BaseModel, field_validator
 class GoalTypeResponse(BaseModel):
     id: UUID
     name: str
-    slug: str
+    maps_query_word: str
     description: str | None
     type: str
     icon_url: str | None
