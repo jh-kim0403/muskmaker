@@ -81,28 +81,3 @@ async def require_premium(
             detail="This feature requires a premium subscription",
         )
     return current_user
-
-
-async def require_admin(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """
-    Raises 403 if the user is not an admin.
-    Admin status is stored as a custom claim on the Firebase token
-    and separately checked against a flag in the DB (belt-and-suspenders).
-    """
-    firebase_user = ...  # already resolved — access via current_user context
-    # Check Firebase custom claim
-    request_state = ...  # not accessible here; use the pattern below in admin router
-    # In practice, admin routes read request.state.firebase_user["admin"] == True
-    # This dependency checks the DB column as a second factor.
-    from sqlalchemy import text
-    result = await db.execute(
-        text("SELECT is_admin FROM admin_users WHERE user_id = :uid"),
-        {"uid": str(current_user.id)},
-    )
-    row = result.fetchone()
-    if row is None or not row.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user

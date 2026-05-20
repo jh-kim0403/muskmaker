@@ -12,46 +12,29 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import nulls_last, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.constants import NotificationEvent, NotificationTone
 from app.database import CelerySessionFactory
 from app.models.goal import GoalType
-from app.models.notification import NotificationTemplate
+from app.models.notification import NotificationPromptConfig, NotificationTemplate
 from app.services.ai_service import openai_client
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-_TONES = [NotificationTone.NORMAL, NotificationTone.FRIENDLY_BANTER, NotificationTone.HARSH]
-
-_TONE_DESCRIPTIONS = {
-    NotificationTone.NORMAL: (
-        "Neutral, direct, and factual. No jokes, no emojis, no profanity. "
-        "Acknowledge the missed goal plainly and encourage the user to try again tomorrow."
-    ),
-    NotificationTone.FRIENDLY_BANTER: (
-        "Funny and light-hearted teasing, like a close friend giving you a hard time. "
-        "Emojis are welcome. Playful and warm — never mean-spirited. "
-        "Think: the friend who ribs you but is always rooting for you."
-    ),
-    NotificationTone.HARSH: (
-        "Brutal, blunt, friend-style roasting. No-holds-barred accountability. "
-        "Strong language is acceptable. Think: the drill-sergeant friend who genuinely "
-        "wants you to succeed but has zero tolerance for excuses."
-    ),
-}
+_TONES = [NotificationTone.FRIENDLY_BANTER, NotificationTone.HARSH]
 
 
 async def _fetch_recent_templates(
-    db: AsyncSession, goal_type_id, tone: str, limit: int = 30
+    db: AsyncSession, goal_type_id, tone: str, event_type: str, limit: int = 30
 ) -> list[NotificationTemplate]:
     result = await db.execute(
         select(NotificationTemplate)
         .where(
-            NotificationTemplate.event_type == NotificationEvent.GOAL_MISSED,
+            NotificationTemplate.event_type == event_type,
             NotificationTemplate.goal_type_id == goal_type_id,
             NotificationTemplate.tone == tone,
         )
@@ -61,7 +44,24 @@ async def _fetch_recent_templates(
     return result.scalars().all()
 
 
-def _build_messages(goal_type: GoalType, tone: str, existing: list[NotificationTemplate]) -> list[dict]:
+async def _fetch_prompt_config(
+    db: AsyncSession, goal_type_id, tone: str, event_type: str
+) -> NotificationPromptConfig | None:
+    result = await db.execute(
+        select(NotificationPromptConfig)
+        .where(
+            NotificationPromptConfig.tone == tone,
+            NotificationPromptConfig.event_type == event_type,
+            (NotificationPromptConfig.goal_type_id == goal_type_id)
+            | NotificationPromptConfig.goal_type_id.is_(None),
+        )
+        .order_by(nulls_last(NotificationPromptConfig.goal_type_id))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def _build_messages(goal_type: GoalType, tone: str, prompt_context: str, existing: list[NotificationTemplate]) -> list[dict]:
     existing_examples = "\n".join(
         f'  - Title: "{t.title}" | Body: "{t.body}"'
         for t in existing
@@ -83,14 +83,12 @@ def _build_messages(goal_type: GoalType, tone: str, existing: list[NotificationT
 
     user_prompt = (
         f"Goal type: {goal_type.name}\n"
-        f"Goal description: {goal_type.description or goal_type.name}\n\n"
         f"Tone: {tone}\n"
-        f"Tone guidance: {_TONE_DESCRIPTIONS[tone]}\n\n"
+        f"Instruction: {prompt_context}\n\n"
         f"The following {len(existing)} templates already exist for this goal type + tone.\n"
         f"Your new template must NOT duplicate any of these:\n"
         f"{existing_examples}\n\n"
-        f"Write one new push notification (title + body) for a user who missed their "
-        f'"{goal_type.name}" goal today. Return JSON only.'
+        f'Return JSON only.'
     )
 
     return [
@@ -100,12 +98,20 @@ def _build_messages(goal_type: GoalType, tone: str, existing: list[NotificationT
 
 
 async def _generate_one(
-    db: AsyncSession, goal_type: GoalType, tone: str
+    db: AsyncSession, goal_type: GoalType, tone: str, event_type: str
 ) -> None:
-    existing = await _fetch_recent_templates(db, goal_type.id, tone)
+    config = await _fetch_prompt_config(db, goal_type.id, tone, event_type)
+    if config is None:
+        logger.warning(
+            "[template_gen] No prompt config for goal_type=%s tone=%s event=%s — skipping",
+            goal_type.name, tone, event_type,
+        )
+        return
+
+    existing = await _fetch_recent_templates(db, goal_type.id, tone, event_type)
     existing_bodies = {t.body.strip().lower() for t in existing}
 
-    messages = _build_messages(goal_type, tone, existing)
+    messages = _build_messages(goal_type, tone, config.prompt_context, existing)
 
     try:
         response = await openai_client.chat.completions.create(
@@ -118,8 +124,8 @@ async def _generate_one(
         parsed = json.loads(raw)
     except Exception as exc:
         logger.warning(
-            "[template_gen] OpenAI call failed for goal_type=%s tone=%s: %s",
-            goal_type.name, tone, exc,
+            "[template_gen] OpenAI call failed for goal_type=%s tone=%s event=%s: %s",
+            goal_type.name, tone, event_type, exc,
         )
         return
 
@@ -128,20 +134,20 @@ async def _generate_one(
 
     if not title or not body:
         logger.warning(
-            "[template_gen] Empty title or body from OpenAI for goal_type=%s tone=%s — skipping",
-            goal_type.name, tone,
+            "[template_gen] Empty title or body from OpenAI for goal_type=%s tone=%s event=%s — skipping",
+            goal_type.name, tone, event_type,
         )
         return
 
     if body.lower() in existing_bodies:
         logger.warning(
-            "[template_gen] Duplicate body generated for goal_type=%s tone=%s — skipping",
-            goal_type.name, tone,
+            "[template_gen] Duplicate body generated for goal_type=%s tone=%s event=%s — skipping",
+            goal_type.name, tone, event_type,
         )
         return
 
     db.add(NotificationTemplate(
-        event_type=NotificationEvent.GOAL_MISSED,
+        event_type=event_type,
         tone=tone,
         goal_type_id=goal_type.id,
         title=title,
@@ -150,8 +156,8 @@ async def _generate_one(
     ))
     await db.commit()
     logger.info(
-        "[template_gen] Generated new template for goal_type=%s tone=%s: %r",
-        goal_type.name, tone, title,
+        "[template_gen] Generated new template for goal_type=%s tone=%s event=%s: %r",
+        goal_type.name, tone, event_type, title,
     )
 
 
@@ -162,13 +168,16 @@ async def generate_notification_templates() -> None:
         )
         goal_types = result.scalars().all()
 
+    _events = [NotificationEvent.GOAL_MISSED, NotificationEvent.GOAL_REMINDER]
+
     for goal_type in goal_types:
         for tone in _TONES:
-            async with CelerySessionFactory() as db:
-                try:
-                    await _generate_one(db, goal_type, tone)
-                except Exception as exc:
-                    logger.exception(
-                        "[template_gen] Unexpected error for goal_type=%s tone=%s: %s",
-                        goal_type.name, tone, exc,
-                    )
+            for event_type in _events:
+                async with CelerySessionFactory() as db:
+                    try:
+                        await _generate_one(db, goal_type, tone, event_type)
+                    except Exception as exc:
+                        logger.exception(
+                            "[template_gen] Unexpected error for goal_type=%s tone=%s event=%s: %s",
+                            goal_type.name, tone, event_type, exc,
+                        )

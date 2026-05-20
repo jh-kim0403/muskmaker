@@ -2,7 +2,7 @@
 Notification handler — runs every 5 minutes via Celery Beat.
 
 Three passes per run:
-  1. goal_reminder_24h — active goals expiring in 23–25 hours, not yet notified
+  1. goal_reminder    — active goals expiring in 16–17 hours, not yet notified
   2. goal_reminder_2h  — active goals expiring in 1–3 hours, not yet notified
   3. goal_missed       — goals that just expired without an approved verification
 
@@ -134,9 +134,16 @@ async def _send_push(
             results = response.json().get("data", [])
 
         for token, result in zip(tokens, results):
-            if result.get("status") == "error" and result.get("details", {}).get("error") == "DeviceNotRegistered":
-                token.is_active = False
-                logger.info("Deactivated unregistered push token for user=%s", user_id)
+            if result.get("status") == "error":
+                error_code = result.get("details", {}).get("error")
+                if error_code == "DeviceNotRegistered":
+                    token.is_active = False
+                    logger.info("Deactivated unregistered push token for user=%s", user_id)
+                else:
+                    logger.warning(
+                        "Expo push error for user=%s token=%s error=%s message=%s",
+                        user_id, token.expo_push_token, error_code, result.get("message"),
+                    )
 
     except Exception as exc:
         logger.exception("Failed to send push notification to user=%s: %s", user_id, exc)
@@ -144,7 +151,7 @@ async def _send_push(
 
 # ── Per-event send functions ───────────────────────────────────────────────────
 
-async def send_goal_reminder_24h(db: AsyncSession, user: User, goal_id: UUID, goal_name: str) -> None:
+async def send_goal_reminder(db: AsyncSession, user: User, goal_id: UUID, goal_name: str, goal_type_id: UUID | None = None) -> None:
     prefs = await _get_prefs(db, user.id)
     if prefs and not prefs.goal_reminder_enabled:
         return
@@ -152,13 +159,13 @@ async def send_goal_reminder_24h(db: AsyncSession, user: User, goal_id: UUID, go
         return
 
     tone = _resolve_tone(user, prefs)
-    template = await _get_template(db, NotificationEvent.GOAL_REMINDER_24H, tone)
+    template = await _get_template(db, NotificationEvent.GOAL_REMINDER, tone, goal_type_id)
     if template is None:
         return
 
     body = template.body.replace("{goal_name}", goal_name)
     await _send_push(db, user.id, template.title, body)
-    await _log(db, goal_id, NotificationEvent.GOAL_REMINDER_24H)
+    await _log(db, goal_id, NotificationEvent.GOAL_REMINDER)
 
 
 async def send_goal_reminder_2h(db: AsyncSession, user: User, goal_id: UUID, goal_name: str) -> None:
@@ -169,13 +176,13 @@ async def send_goal_reminder_2h(db: AsyncSession, user: User, goal_id: UUID, goa
         return
 
     tone = _resolve_tone(user, prefs)
-    template = await _get_template(db, NotificationEvent.GOAL_REMINDER_2H, tone)
+    template = await _get_template(db, NotificationEvent.GOAL_REMINDER_2HR, tone)
     if template is None:
         return
 
     body = template.body.replace("{goal_name}", goal_name)
     await _send_push(db, user.id, template.title, body)
-    await _log(db, goal_id, NotificationEvent.GOAL_REMINDER_2H)
+    await _log(db, goal_id, NotificationEvent.GOAL_REMINDER_2HR)
 
 
 async def send_goal_missed(
@@ -214,15 +221,15 @@ async def send_sweep_results(db: AsyncSession, user: User) -> None:
 
 # ── Celery Beat orchestrators (one per notification type) ─────────────────────
 
-async def send_24h_reminders() -> None:
+async def send_reminders() -> None:
     async with CelerySessionFactory() as session:
         try:
             now_utc = datetime.now(timezone.utc)
-            window_start = now_utc + timedelta(hours=23)
-            window_end   = now_utc + timedelta(hours=25)
+            window_start = now_utc + timedelta(hours=16)
+            window_end   = now_utc + timedelta(hours=17)
 
             already_sent = select(GoalNotificationLog.goal_id).where(
-                GoalNotificationLog.event_type == NotificationEvent.GOAL_REMINDER_24H
+                GoalNotificationLog.event_type == NotificationEvent.GOAL_REMINDER
             )
             result = await session.execute(
                 select(Goal)
@@ -239,16 +246,16 @@ async def send_24h_reminders() -> None:
             )
             sent = 0
             for goal in result.scalars().all():
-                await send_goal_reminder_24h(session, goal.user, goal.id, goal.goal_type.name)
+                await send_goal_reminder(session, goal.user, goal.id, goal.goal_type.name, goal.goal_type_id)
                 sent += 1
 
             await session.commit()
             if sent:
-                logger.info("[notification:24h] Sent %d notification(s)", sent)
+                logger.info("[notification:reminder] Sent %d notification(s)", sent)
 
         except Exception as exc:
             await session.rollback()
-            logger.exception("[notification:24h] Error: %s", exc)
+            logger.exception("[notification:reminder] Error: %s", exc)
 
 
 async def send_2h_reminders() -> None:
@@ -259,7 +266,7 @@ async def send_2h_reminders() -> None:
             window_end   = now_utc + timedelta(hours=3)
 
             already_sent = select(GoalNotificationLog.goal_id).where(
-                GoalNotificationLog.event_type == NotificationEvent.GOAL_REMINDER_2H
+                GoalNotificationLog.event_type == NotificationEvent.GOAL_REMINDER_2HR
             )
             result = await session.execute(
                 select(Goal)

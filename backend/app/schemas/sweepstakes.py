@@ -8,6 +8,7 @@ class SweepstakesResponse(BaseModel):
     title: str
     description: str | None
     prize_description: str
+    photo_url: str | None
     status: str
     starts_at: datetime
     ends_at: datetime

@@ -7,6 +7,8 @@
  *   ['me']                     → current user profile
  *   ['goal-types']             → catalog of goal types
  *   ['goals', 'today']         → today's availability for this user
+ *   ['goals', 'past']          → user's past goals
+ *   ['goals', 'future']        → user's future goals
  *   ['goal', id]               → single goal
  *   ['verification', id]       → single verification (polled for free users)
  *   ['sweepstakes', 'active']  → active sweepstakes list
@@ -69,6 +71,20 @@ export const useTodaysGoals = () =>
     queryFn: api.fetchTodaysGoals,
     // Refetch when the app comes to foreground — local day may have changed
     refetchOnWindowFocus: true,
+    staleTime: 60 * 1000,
+  });
+
+export const usePastGoals = () =>
+  useQuery({
+    queryKey: ['goals', 'past'],
+    queryFn: api.fetchPastGoals,
+    staleTime: 60 * 1000,
+  });
+
+export const useFutureGoals = () =>
+  useQuery({
+    queryKey: ['goals', 'future'],
+    queryFn: api.fetchFutureGoals,
     staleTime: 60 * 1000,
   });
 

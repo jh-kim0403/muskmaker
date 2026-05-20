@@ -1,20 +1,22 @@
 """
 Admin router — protected endpoints for the manual review panel and draw management.
 
-All routes require admin authentication (Firebase custom claim + DB check).
-Never expose these routes publicly — serve behind VPN/IP allowlist on EC2.
+All routes require an X-Admin-Key header. The raw key is SHA-256 hashed and
+looked up in the admin_users table. Never expose these routes publicly —
+serve behind VPN/IP allowlist on EC2.
 """
+import hashlib
 import logging
 import secrets
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.models.admin import AdminUser
 from app.models.audit import AdminReview
 from app.models.goal import Goal, GoalType
 from app.models.sweepstakes import Sweepstakes, SweepstakesDraw, SweepstakesEntry, SweepstakesWinner
@@ -36,17 +38,24 @@ router = APIRouter(tags=["admin"])
 
 
 async def require_admin(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-) -> User:
+    x_admin_key: str = Header(...),
+    db: AsyncSession = Depends(get_db),
+) -> AdminUser:
     """
-    Admin gate: checks Firebase custom claim 'admin' == True.
-    Use this as a dependency on all admin routes.
+    Authenticates admin requests via X-Admin-Key header.
+    The raw key is SHA-256 hashed and matched against admin_users.api_key_hash.
     """
-    firebase_user = getattr(request.state, "firebase_user", {})
-    if not firebase_user.get("admin"):
+    key_hash = hashlib.sha256(x_admin_key.encode()).hexdigest()
+    result = await db.execute(
+        select(AdminUser).where(
+            AdminUser.api_key_hash == key_hash,
+            AdminUser.is_active == True,  # noqa: E712
+        )
+    )
+    admin = result.scalar_one_or_none()
+    if admin is None:
         raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
+    return admin
 
 
 # ── Review Queue ───────────────────────────────────────────────────────────────
@@ -55,7 +64,7 @@ async def require_admin(
 async def get_review_queue(
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: AdminUser = Depends(require_admin),
 ):
     """
     Returns the pending free-tier verification review queue,
@@ -89,7 +98,7 @@ async def get_review_queue(
             goal_type_name=goal.goal_type.name,
             goal_local_date=goal.local_goal_date.isoformat(),
             queued_at=review.queued_at,
-            sla_deadline=review.queued_at,  # sla_deadline is a generated column; use raw if needed
+            sla_deadline=review.sla_deadline,
             priority=review.priority,
             photo_urls=photo_urls,
         ))
@@ -100,7 +109,7 @@ async def get_review_queue(
 async def claim_review(
     review_id: UUID,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: AdminUser = Depends(require_admin),
 ):
     """Assign a review to the calling admin reviewer (prevents double-review)."""
     from datetime import datetime, timezone
@@ -123,7 +132,7 @@ async def decide_review(
     review_id: UUID,
     body: AdminReviewDecisionRequest,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: AdminUser = Depends(require_admin),
 ):
     """
     Approve or reject a free-tier verification.
@@ -162,7 +171,7 @@ async def decide_review(
 async def trigger_draw(
     body: TriggerDrawRequest,
     db: AsyncSession = Depends(get_db),
-    admin: User = Depends(require_admin),
+    admin: AdminUser = Depends(require_admin),
 ):
     """
     Execute the sweepstakes draw for a completed sweepstakes.

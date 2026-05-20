@@ -1,6 +1,7 @@
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -10,6 +11,7 @@ from app.schemas.goal import CreateGoalRequest, GoalResponse, GoalTypeResponse
 from app.services.goal_service import GoalService
 
 router = APIRouter(tags=["goals"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/types", response_model=list[GoalTypeResponse])
@@ -31,6 +33,36 @@ async def get_todays_goals(
     across all statuses.
     """
     return await GoalService.get_todays_goals(db, current_user)
+
+
+@router.get("/past", response_model=list[GoalResponse])
+async def get_past_goals(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns all goals before the user's current local date."""
+    try:
+        return await GoalService.get_past_goals(db, current_user)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Could not fetch past goals for user=%s: %s", current_user.id, exc)
+        raise HTTPException(status_code=500, detail="Could not fetch past goals")
+
+
+@router.get("/future", response_model=list[GoalResponse])
+async def get_future_goals(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Returns all goals after the user's current local date."""
+    try:
+        return await GoalService.get_future_goals(db, current_user)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Could not fetch future goals for user=%s: %s", current_user.id, exc)
+        raise HTTPException(status_code=500, detail="Could not fetch future goals")
 
 
 @router.post("/new", response_model=GoalResponse, status_code=201)

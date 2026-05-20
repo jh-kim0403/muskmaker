@@ -10,7 +10,7 @@ The ledger is the source of truth. users.coin_balance is a denormalized cache.
 """
 import logging
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
@@ -109,30 +109,33 @@ class CoinService:
             raise HTTPException(status_code=404, detail="Sweepstakes not found or not active")
 
         new_balance = user.coin_balance - coins_to_spend
+        ledger_id = uuid4()
+        entry_id = uuid4()
 
         # 1 + 2. Ledger debit
         ledger_entry = CoinLedger(
+            id=ledger_id,
             user_id=user.id,
             amount=-coins_to_spend,
             balance_after=new_balance,
             transaction_type=CoinTxType.SWEEPSTAKES_ENTRY,
+            reference_id=entry_id,
             reference_type=CoinRefType.SWEEPSTAKES_ENTRY,
             description=f"Entered sweepstakes with {coins_to_spend} coin(s)",
         )
-        db.add(ledger_entry)
-        await db.flush()  # get ledger_entry.id before referencing in entry
 
         # 3. Update user balance
         user.coin_balance = new_balance
 
         # 4. Create entry row (ledger_id enforces debit ↔ entry integrity)
         entry = SweepstakesEntry(
+            id=entry_id,
             sweepstakes_id=sweepstakes_id,
             user_id=user.id,
             coins_entered=coins_to_spend,
-            ledger_id=ledger_entry.id,
+            ledger_id=ledger_id,
         )
-        db.add(entry)
+        db.add_all([ledger_entry, entry])
 
         # 5. Increment total pool counter atomically
         sweepstakes.total_entries_count += coins_to_spend

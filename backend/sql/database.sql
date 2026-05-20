@@ -342,6 +342,7 @@ CREATE TABLE sweepstakes (
     title                   TEXT                NOT NULL,
     description             TEXT,
     prize_description       TEXT                NOT NULL,  -- "$50 Amazon Gift Card"
+    photo_url               TEXT,
     rules_url               TEXT,
 
     status                  sweepstakes_status  NOT NULL DEFAULT 'upcoming',

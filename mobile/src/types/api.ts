@@ -83,6 +83,7 @@ export interface SweepstakesWithOdds {
   title: string;
   description: string | null;
   prize_description: string;
+  photo_url: string | null;
   status: string;
   starts_at: string;
   ends_at: string;

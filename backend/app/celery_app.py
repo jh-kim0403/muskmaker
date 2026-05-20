@@ -29,8 +29,8 @@ celery_app.conf.update(
             "task": "app.tasks.periodic.expire_stale_goals",
             "schedule": crontab(minute=5),  # every hour at :05
         },
-        "send-24h-reminders": {
-            "task": "app.tasks.periodic.send_24h_reminders",
+        "send-reminders": {
+            "task": "app.tasks.periodic.send_reminders",
             "schedule": 300.0,  # every 5 minutes
         },
         

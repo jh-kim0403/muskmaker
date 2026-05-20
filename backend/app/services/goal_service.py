@@ -56,6 +56,44 @@ class GoalService:
         return result.scalars().all()
 
     @staticmethod
+    async def get_past_goals(
+        db: AsyncSession, user: User
+    ) -> list[Goal]:
+        """Returns all goals before the user's current local date."""
+        now_utc = datetime.now(timezone.utc)
+        local_today = TimezoneService.user_local_date(now_utc, user.timezone)
+
+        result = await db.execute(
+            select(Goal)
+            .options(selectinload(Goal.goal_type))
+            .where(
+                Goal.user_id == user.id,
+                Goal.local_goal_date < local_today,
+            )
+            .order_by(Goal.local_goal_date.desc(), Goal.created_at.desc())
+        )
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_future_goals(
+        db: AsyncSession, user: User
+    ) -> list[Goal]:
+        """Returns all goals after the user's current local date."""
+        now_utc = datetime.now(timezone.utc)
+        local_today = TimezoneService.user_local_date(now_utc, user.timezone)
+
+        result = await db.execute(
+            select(Goal)
+            .options(selectinload(Goal.goal_type))
+            .where(
+                Goal.user_id == user.id,
+                Goal.local_goal_date > local_today,
+            )
+            .order_by(Goal.local_goal_date.asc(), Goal.created_at.asc())
+        )
+        return result.scalars().all()
+
+    @staticmethod
     async def create_goal(
         db: AsyncSession,
         user: User,
@@ -134,4 +172,3 @@ class GoalService:
         if goal is None:
             raise HTTPException(status_code=404, detail="Goal not found")
         return goal
-

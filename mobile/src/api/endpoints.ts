@@ -49,6 +49,12 @@ export const fetchGoalTypes = (): Promise<GoalType[]> =>
 export const fetchTodaysGoals = (): Promise<Goal[]> =>
   apiClient.get('/goals/today').then((r) => r.data);
 
+export const fetchPastGoals = (): Promise<Goal[]> =>
+  apiClient.get('/goals/past').then((r) => r.data);
+
+export const fetchFutureGoals = (): Promise<Goal[]> =>
+  apiClient.get('/goals/future').then((r) => r.data);
+
 export const createGoal = (data: {
   goal_type_id: string;
   title: string;

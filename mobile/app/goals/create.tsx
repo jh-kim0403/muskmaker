@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,12 @@ import {
   FlatList,
 } from 'react-native';
 import { router } from 'expo-router';
+import { getCalendars } from 'expo-localization';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 
+import { updateTimezone } from '@/api/endpoints';
 import { useGoalTypes, useCreateGoal } from '@/api/hooks';
 import { useAuthStore } from '@/stores/authStore';
 import type { GoalType } from '@/types/api';
@@ -41,23 +43,44 @@ function buildDateOptions(userTz: string) {
 export default function CreateGoalScreen() {
   const { data: goalTypes, isLoading: typesLoading } = useGoalTypes();
   const createGoal = useCreateGoal();
-  const userTz = useAuthStore((s) => s.timezone)();
+  const storedTimezone = useAuthStore((s) => s.user?.timezone);
+  const setUser = useAuthStore((s) => s.setUser);
+  const deviceTimezone = useMemo(
+    () => getCalendars()[0]?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    []
+  );
+  const timezoneName = storedTimezone || deviceTimezone || 'UTC';
 
-  const dateOptions = buildDateOptions(userTz);
+  const dateOptions = useMemo(() => buildDateOptions(timezoneName), [timezoneName]);
 
   const [selectedType, setSelectedType] = useState<GoalType | null>(null);
   const [title, setTitle] = useState('');
-  const [selectedDate, setSelectedDate] = useState(dateOptions[0].value);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const effectiveSelectedDate = selectedDate ?? dateOptions[0].value;
 
   const canSubmit = !!selectedType && title.trim().length > 0;
 
   const handleCreate = async () => {
     if (!selectedType || !title.trim()) return;
     try {
+      if (deviceTimezone && storedTimezone !== deviceTimezone) {
+        try {
+          const updatedUser = await updateTimezone(deviceTimezone);
+          setUser(updatedUser);
+        } catch (err: any) {
+          Alert.alert(
+            'Could not confirm timezone',
+            err?.response?.data?.detail ?? err?.detail ?? 'Please try again before creating this goal.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
       await createGoal.mutateAsync({
         goal_type_id: selectedType.id,
         title: title.trim(),
-        expire_user_local_date: selectedDate,
+        expire_user_local_date: effectiveSelectedDate,
       });
       router.replace('/(tabs)');
       Alert.alert('Goal Created!', `"${title.trim()}" has been added to today's goals.`, [{ text: 'OK' }]);
@@ -128,7 +151,7 @@ export default function CreateGoalScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.dateRow}
         renderItem={({ item }) => {
-          const active = item.value === selectedDate;
+          const active = item.value === effectiveSelectedDate;
           return (
             <Pressable
               style={[styles.dateChip, active && styles.dateChipActive]}

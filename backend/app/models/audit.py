@@ -16,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, uuid_pk
+from app.models.admin import AdminUser
 
 
 class TimezoneAuditLog(Base):
@@ -115,15 +116,15 @@ class AntiCheatLog(Base):
     )
 
     # Admin disposition
-    reviewed_by: Mapped[uuid.UUID | None]   = mapped_column(ForeignKey("users.id"))
+    reviewed_by: Mapped[uuid.UUID | None]   = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"))
     reviewed_at: Mapped[datetime | None]    = mapped_column(TIMESTAMP(timezone=True))
     resolution: Mapped[str | None]          = mapped_column(Text)  # 'false_positive'|'confirmed_abuse'|'warning_issued'|'banned'
 
     created_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     # Relationships
-    user:     Mapped["User"]            = relationship(foreign_keys=[user_id])
-    reviewer: Mapped["User | None"]     = relationship(foreign_keys=[reviewed_by])
+    user:     Mapped["User"]                = relationship(foreign_keys=[user_id])
+    reviewer: Mapped["AdminUser | None"]    = relationship(foreign_keys=[reviewed_by])
 
     def __repr__(self) -> str:
         return f"<AntiCheatLog user={self.user_id} event={self.event_type} severity={self.severity}>"
@@ -162,7 +163,7 @@ class AdminReview(Base):
     )
 
     queued_at: Mapped[datetime]             = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    assigned_to: Mapped[uuid.UUID | None]   = mapped_column(ForeignKey("users.id"))
+    assigned_to: Mapped[uuid.UUID | None]   = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"))
     assigned_at: Mapped[datetime | None]    = mapped_column(TIMESTAMP(timezone=True))
     completed_at: Mapped[datetime | None]   = mapped_column(TIMESTAMP(timezone=True))
 
@@ -175,9 +176,9 @@ class AdminReview(Base):
     updated_at: Mapped[datetime]    = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     # Relationships
-    verification: Mapped["Verification"]    = relationship(back_populates="admin_review")
-    user: Mapped["User"]                    = relationship(foreign_keys=[user_id])
-    assignee: Mapped["User | None"]         = relationship(foreign_keys=[assigned_to])
+    verification: Mapped["Verification"]        = relationship(back_populates="admin_review")
+    user: Mapped["User"]                        = relationship(foreign_keys=[user_id])
+    assignee: Mapped["AdminUser | None"]        = relationship(foreign_keys=[assigned_to])
 
     def __repr__(self) -> str:
         return f"<AdminReview id={self.id} verification={self.verification_id} status={self.status}>"

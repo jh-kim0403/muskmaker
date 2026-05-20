@@ -8,10 +8,10 @@
  *  - Entry flow with coin spend input
  *  - Apple compliance text (always visible)
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, Pressable, FlatList, Modal,
-  TextInput, Alert, ActivityIndicator,
+  TextInput, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { router } from 'expo-router';
 
@@ -27,6 +27,13 @@ export default function SweepstakesTab() {
 
   const [selectedSweep, setSelectedSweep] = useState<SweepstakesWithOdds | null>(null);
   const [coinsToSpend, setCoinsToSpend] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setNow(Date.now());
+    const intervalId = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleEnter = async () => {
     const coins = parseInt(coinsToSpend, 10);
@@ -80,6 +87,7 @@ export default function SweepstakesTab() {
         renderItem={({ item }) => (
           <SweepstakesCard
             sweep={item}
+            now={now}
             onEnter={() => setSelectedSweep(item)}
           />
         )}
@@ -100,7 +108,17 @@ export default function SweepstakesTab() {
       >
         {selectedSweep && (
           <View style={styles.modal}>
+            {selectedSweep.photo_url && (
+              <Image
+                source={{ uri: selectedSweep.photo_url }}
+                style={styles.modalImage}
+                resizeMode="cover"
+              />
+            )}
             <Text style={styles.modalTitle}>{selectedSweep.prize_description}</Text>
+            <Text style={styles.countdownText}>
+              {formatTimeRemaining(selectedSweep.ends_at, now)}
+            </Text>
 
             <OddsDisplay
               userEntries={selectedSweep.user_entries}
@@ -147,11 +165,15 @@ export default function SweepstakesTab() {
 }
 
 function SweepstakesCard({
-  sweep, onEnter,
-}: { sweep: SweepstakesWithOdds; onEnter: () => void }) {
+  sweep, now, onEnter,
+}: { sweep: SweepstakesWithOdds; now: number; onEnter: () => void }) {
   return (
     <View style={cardStyles.card}>
+      {sweep.photo_url && (
+        <Image source={{ uri: sweep.photo_url }} style={cardStyles.image} resizeMode="cover" />
+      )}
       <Text style={cardStyles.prize}>{sweep.prize_description}</Text>
+      <Text style={cardStyles.countdown}>{formatTimeRemaining(sweep.ends_at, now)}</Text>
 
       <OddsDisplay
         userEntries={sweep.user_entries}
@@ -173,6 +195,24 @@ function formatOdds(odds: number | null): string {
   return `${(odds * 100).toFixed(2)}%`;
 }
 
+function formatTimeRemaining(endsAt: string, nowMs: number): string {
+  const endMs = new Date(endsAt).getTime();
+  if (Number.isNaN(endMs)) return 'Time remaining unavailable';
+
+  const remainingMs = Math.max(0, endMs - nowMs);
+  if (remainingMs === 0) return 'Ended';
+
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${days} days ${hours} hours ${minutes} minutes ${seconds
+    .toString()
+    .padStart(2, '0')} seconds left`;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
   header: {
@@ -192,7 +232,14 @@ const styles = StyleSheet.create({
   list: { padding: 20, gap: 16 },
   empty: { color: '#555', textAlign: 'center', marginTop: 40, fontSize: 15 },
   modal: { flex: 1, backgroundColor: '#0A0A0A', padding: 24, paddingTop: 40, gap: 16 },
+  modalImage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 14,
+    backgroundColor: '#111',
+  },
   modalTitle: { fontSize: 22, fontWeight: '800', color: '#FFF' },
+  countdownText: { color: '#F5A623', fontSize: 14, fontWeight: '700' },
   modalLabel: { color: '#888', fontSize: 14 },
   coinsInput: {
     height: 56, backgroundColor: '#1A1A1A', borderRadius: 12,
@@ -215,7 +262,14 @@ const cardStyles = StyleSheet.create({
     backgroundColor: '#111', borderRadius: 16, padding: 20, gap: 12,
     borderWidth: 1, borderColor: '#1A1A1A',
   },
+  image: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    backgroundColor: '#1A1A1A',
+  },
   prize: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  countdown: { color: '#F5A623', fontSize: 13, fontWeight: '700' },
   enterBtn: {
     height: 48, backgroundColor: '#F5A623', borderRadius: 10,
     justifyContent: 'center', alignItems: 'center',

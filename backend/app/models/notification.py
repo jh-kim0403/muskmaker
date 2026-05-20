@@ -122,7 +122,7 @@ class NotificationTemplate(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     event_type: Mapped[str] = mapped_column(
         SAEnum(
-            "goal_missed", "goal_reminder_24h", "goal_reminder_2h", "sweep_results",
+            "goal_missed", "goal_reminder", "goal_reminder_2hr", "sweep_results",
             name="notification_event_type",
         ),
         nullable=False,
@@ -163,7 +163,7 @@ class GoalNotificationLog(Base):
     )
     event_type: Mapped[str] = mapped_column(
         SAEnum(
-            "goal_missed", "goal_reminder_24h", "goal_reminder_2h", "sweep_results",
+            "goal_missed", "goal_reminder", "goal_reminder_2hr", "sweep_results",
             name="notification_event_type",
         ),
         nullable=False,
@@ -177,3 +177,34 @@ class GoalNotificationLog(Base):
 
 
 Index("idx_goal_notification_log_goal", GoalNotificationLog.goal_id)
+
+
+class NotificationPromptConfig(Base):
+    """
+    Per-(goal_type, tone, event_type) prompt context injected into OpenAI
+    when generating notification templates.
+
+    goal_type_id IS NULL = generic fallback (applies to all goal types).
+    When a specific row exists for a goal type, it takes priority over generic.
+
+    Uniqueness is enforced by two partial indexes in the migration:
+    - (goal_type_id, tone, event_type) WHERE goal_type_id IS NOT NULL
+    - (tone, event_type)               WHERE goal_type_id IS NULL
+    """
+    __tablename__ = "notification_prompt_configs"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    goal_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("goal_types.id", ondelete="SET NULL"), nullable=True
+    )
+    tone: Mapped[str]       = mapped_column(Text, nullable=False)
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_context: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    goal_type: Mapped["GoalType | None"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<NotificationPromptConfig goal_type={self.goal_type_id} tone={self.tone} event={self.event_type}>"

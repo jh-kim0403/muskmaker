@@ -96,8 +96,8 @@ class NotificationTone:
 # ── Notification event types ──────────────────────────────────────────────────
 class NotificationEvent:
     GOAL_MISSED         = "goal_missed"
-    GOAL_REMINDER_24H   = "goal_reminder_24h"
-    GOAL_REMINDER_2H    = "goal_reminder_2h"
+    GOAL_REMINDER       = "goal_reminder"
+    GOAL_REMINDER_2HR   = "goal_reminder_2hr"
     SWEEP_RESULTS       = "sweep_results"
 
 

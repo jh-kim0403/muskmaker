@@ -34,8 +34,12 @@ class FirebaseAuthMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        # Skip auth for public paths
-        if request.url.path in PUBLIC_PATHS:
+        # CORS preflight — always let through so the browser gets CORS headers
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Skip auth for public paths and admin routes (admin uses X-Admin-Key instead)
+        if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/api/v1/admin"):
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization", "")

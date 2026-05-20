@@ -22,6 +22,10 @@ export default function TabsLayout() {
         options={{ title: 'Today', tabBarIcon: ({ color }) => null /* add icon */ }}
       />
       <Tabs.Screen
+        name="goals"
+        options={{ title: 'Goals', tabBarIcon: ({ color }) => null }}
+      />
+      <Tabs.Screen
         name="sweepstakes"
         options={{ title: 'Win', tabBarIcon: ({ color }) => null }}
       />

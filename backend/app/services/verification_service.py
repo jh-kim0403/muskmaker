@@ -271,7 +271,6 @@ class VerificationService:
             verification.status = VerificationStatus.REJECTED
             verification.rejection_reason = rejection_reason
             verification.reviewed_at = now_utc
-            verification.reviewer_id = admin_user.id
             verification.internal_notes = reviewer_notes
             goal.status = GoalStatus.REJECTED
             review.status = "rejected"

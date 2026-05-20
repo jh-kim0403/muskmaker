@@ -46,6 +46,7 @@
       "@react-native-firebase/app",
       "expo-router",
       "expo-apple-authentication",
+      "expo-localization",
       "expo-notifications",
       [
         "expo-location",

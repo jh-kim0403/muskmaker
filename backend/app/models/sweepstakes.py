@@ -38,6 +38,7 @@ class Sweepstakes(Base):
     title: Mapped[str]              = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     prize_description: Mapped[str]  = mapped_column(Text, nullable=False)  # "$50 Amazon Gift Card"
+    photo_url: Mapped[str | None]   = mapped_column(Text)
     rules_url: Mapped[str | None]   = mapped_column(Text)
 
     status: Mapped[str]             = mapped_column(
