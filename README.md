@@ -203,9 +203,3 @@ EXPO_PUBLIC_API_URL=http://192.168.1.x:8000
 ```env
 VITE_API_URL=http://localhost:8000
 ```
-
----
-
-## License
-
-MIT
