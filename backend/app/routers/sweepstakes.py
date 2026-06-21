@@ -29,7 +29,10 @@ async def list_active_sweepstakes(
     Odds = user_entries / total_entries (0 if total is 0).
     """
     sweep_result = await db.execute(
-        select(Sweepstakes).where(Sweepstakes.status == "active")
+        select(Sweepstakes).where(
+            Sweepstakes.status == "active",
+            Sweepstakes.ends_at > func.now(),
+        )
     )
     sweepstakes_list = sweep_result.scalars().all()
 

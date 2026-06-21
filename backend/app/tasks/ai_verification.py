@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
     bind=True,
     max_retries=3,
     default_retry_delay=30,
+    acks_late=True,
 )
 def run_ai_verification_standard(self, verification_id: str) -> None:
     try:

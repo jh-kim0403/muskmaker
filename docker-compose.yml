@@ -1,0 +1,147 @@
+# MuskMaker single-host stack.
+#
+#   docker compose up -d --build
+#
+# Postgres + RabbitMQ run as containers on the box. The backend image is built
+# once and reused by api / worker / beat / migrate (they differ only in command).
+#
+# Secrets live in backend/.env (env_file) plus two key files mounted read-only.
+# POSTGRES_* below MUST match the credentials inside backend/.env's database_url.
+# Override them by exporting in the shell or via a root-level .env file.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-muskmaker}
+      POSTGRES_DB: ${POSTGRES_DB:-muskmaker}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-muskmaker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not published to the host — reachable only on the compose network as `db`.
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # One-shot: applies migrations, then exits 0. Gates api/worker/beat startup.
+  migrate:
+    build:
+      context: ./backend
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./backend/cloudfront-private-key.pem:/app/cloudfront-private-key.pem:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./backend/cloudfront-private-key.pem:/app/cloudfront-private-key.pem:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Not published — Caddy reverse-proxies to `api:8000` on the compose network.
+
+  worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - app.celery_app
+      - worker
+      - --queues=celery,ai_verification_standard,ai_verification_location
+      - --loglevel=info
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./backend/cloudfront-private-key.pem:/app/cloudfront-private-key.pem:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # Exactly one beat instance — a second would double-fire scheduled tasks.
+  beat:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - app.celery_app
+      - beat
+      - --loglevel=info
+      # Keep the schedule DB on a volume so it survives restarts.
+      - --schedule=/var/lib/celery/celerybeat-schedule
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./backend/cloudfront-private-key.pem:/app/cloudfront-private-key.pem:ro
+      - beat_data:/var/lib/celery
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  rabbitmq_data:
+  beat_data:
+  caddy_data:
+  caddy_config:

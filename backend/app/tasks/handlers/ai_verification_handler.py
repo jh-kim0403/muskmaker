@@ -38,10 +38,12 @@ async def openai_verify_photo(verification_id: str) -> None:
                     .selectinload(Goal.user),
             )
             .where(Verification.id == verification_id)
+            .where(Verification.status == VerificationStatus.PENDING)
+            .with_for_update(skip_locked=True)
         )
         verification = result.scalar_one_or_none()
         if verification is None:
-            logger.error("Verification %s not found", verification_id)
+            logger.info("Verification %s already locked or processed, skipping", verification_id)
             return
 
         goal = verification.goal
@@ -119,10 +121,12 @@ async def run_location(verification_id: str) -> None:
                     .selectinload(Goal.user),
             )
             .where(Verification.id == verification_id)
+            .where(Verification.status == VerificationStatus.PENDING)
+            .with_for_update(skip_locked=True)
         )
         verification = result.scalar_one_or_none()
         if verification is None:
-            logger.error("Verification %s not found", verification_id)
+            logger.info("Verification %s already locked or processed, skipping", verification_id)
             return
 
         goal = verification.goal

@@ -33,10 +33,6 @@ export default function TabsLayout() {
         name="profile"
         options={{ title: 'Profile', tabBarIcon: ({ color }) => null }}
       />
-      <Tabs.Screen
-        name="test"
-        options={{ title: 'Test', tabBarIcon: ({ color }) => null }}
-      />
     </Tabs>
   );
 }

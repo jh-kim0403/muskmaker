@@ -1,0 +1,8 @@
+# Replace api.example.com with your real subdomain (DNS A record → EC2 Elastic IP).
+# Caddy automatically provisions and renews a Let's Encrypt TLS certificate
+# once the domain resolves to this server and ports 80/443 are reachable.
+
+api.example.com {
+	encode gzip
+	reverse_proxy api:8000
+}
